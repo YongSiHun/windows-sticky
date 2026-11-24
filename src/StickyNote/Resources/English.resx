@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+<resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+<resheader name="version"><value>2.0</value></resheader>
+<resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+<resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+<data name="AppTitle" xml:space="preserve"><value>Sticky Note</value></data>
+<data name="NewNote" xml:space="preserve"><value>New note</value></data>
+<data name="Hide" xml:space="preserve"><value>Hide</value></data>
+<data name="Show" xml:space="preserve"><value>Show</value></data>
+<data name="Options" xml:space="preserve"><value>Note options</value></data>
+<data name="Title" xml:space="preserve"><value>Title</value></data>
+<data name="Content" xml:space="preserve"><value>Note content</value></data>
+<data name="Manager" xml:space="preserve"><value>Note manager</value></data>
+<data name="Settings" xml:space="preserve"><value>Settings</value></data>
+<data name="Search" xml:space="preserve"><value>Search title and content</value></data>
+<data name="Delete" xml:space="preserve"><value>Delete</value></data>
+<data name="DeleteConfirm" xml:space="preserve"><value>Delete this note? This cannot be undone.</value></data>
+<data name="Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+<data name="Background" xml:space="preserve"><value>Background color</value></data>
+<data name="Foreground" xml:space="preserve"><value>Text color (#RRGGBB)</value></data>
+<data name="FontSize" xml:space="preserve"><value>Font size (8–72)</value></data>
+<data name="Opacity" xml:space="preserve"><value>Opacity</value></data>
+<data name="Mode" xml:space="preserve"><value>Display mode</value></data>
+<data name="desktop" xml:space="preserve"><value>Desktop</value></data>
+<data name="normal" xml:space="preserve"><value>Normal</value></data>
+<data name="topmost" xml:space="preserve"><value>Always on top</value></data>
+<data name="Fallback" xml:space="preserve"><value>Desktop unavailable</value></data>
+<data name="Color0" xml:space="preserve"><value>Yellow</value></data>
+<data name="Color1" xml:space="preserve"><value>Green</value></data>
+<data name="Color2" xml:space="preserve"><value>Blue</value></data>
+<data name="Color3" xml:space="preserve"><value>Pink</value></data>
+<data name="Color4" xml:space="preserve"><value>Purple</value></data>
+<data name="Color5" xml:space="preserve"><value>White</value></data>
+<data name="Color6" xml:space="preserve"><value>Gray</value></data>
+<data name="Custom" xml:space="preserve"><value>Custom</value></data>
+<data name="ColorHint" xml:space="preserve"><value>Color (#RRGGBB)</value></data>
+<data name="Invalid" xml:space="preserve"><value>Invalid input.</value></data>
+<data name="Save" xml:space="preserve"><value>Save</value></data>
+<data name="ShowAll" xml:space="preserve"><value>Show all</value></data>
+<data name="HideAll" xml:space="preserve"><value>Hide all</value></data>
+<data name="Startup" xml:space="preserve"><value>Start with Windows</value></data>
+<data name="Language" xml:space="preserve"><value>Language</value></data>
+<data name="DefaultsHint" xml:space="preserve"><value>Defaults apply to new notes. Language changes apply after restarting.</value></data>
+<data name="Export" xml:space="preserve"><value>Export backup</value></data>
+<data name="Restore" xml:space="preserve"><value>Restore backup</value></data>
+<data name="RestartLanguage" xml:space="preserve"><value>Restart to apply the language change.</value></data>
+<data name="Success" xml:space="preserve"><value>Completed.</value></data>
+<data name="RestoreConfirm" xml:space="preserve"><value>Replace notes and settings with this backup? Current data will be backed up first.</value></data>
+<data name="RestoreSuccess" xml:space="preserve"><value>Restored. Restart to apply the restored language.</value></data>
+<data name="Exit" xml:space="preserve"><value>Exit</value></data>
+<data name="SaveError" xml:space="preserve"><value>Unable to save. Check disk space and permissions, and export a backup.</value></data>
+<data name="InstanceUnavailable" xml:space="preserve"><value>Unable to contact the running instance. Try again shortly.</value></data>
+<data name="RecoveryBlocked" xml:space="preserve"><value>Neither data nor a valid backup could be read. Autosave is blocked and originals preserved. Restore a valid backup in Settings.</value></data>
+<data name="Recovered" xml:space="preserve"><value>Recovered previous valid data. Corrupt originals were preserved.</value></data>
+<data name="StartupError" xml:space="preserve"><value>Unable to start. Check data folder permissions and logs.</value></data>
+<data name="OperationError" xml:space="preserve"><value>Unable to complete the operation. Check input, file permissions and disk space.</value></data>
+<data name="ExitSaveError" xml:space="preserve"><value>Saving failed. Exit without saving? Choose No to return.</value></data>
+<data name="Rename" xml:space="preserve"><value>Rename</value></data>
+</root>

@@ -1,0 +1,29 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <ProjectGuid>{A3142C21-8A03-41D8-9EB3-17933227A441}</ProjectGuid>
+    <OutputType>WinExe</OutputType><RootNamespace>StickyNote</RootNamespace><AssemblyName>StickyNote</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion><LangVersion>5</LangVersion>
+    <PlatformTarget>$(Platform)</PlatformTarget><Prefer32Bit>false</Prefer32Bit>
+    <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath><ApplicationManifest>app.manifest</ApplicationManifest>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <DebugSymbols Condition="'$(Configuration)' == 'Debug'">true</DebugSymbols>
+    <DefineConstants Condition="'$(Configuration)' == 'Debug'">DEBUG;TRACE</DefineConstants>
+    <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Xaml"/>
+    <Reference Include="System.Web.Extensions"/><Reference Include="System.Drawing"/><Reference Include="System.Windows.Forms"/>
+    <Reference Include="WindowsBase"/><Reference Include="PresentationCore"/><Reference Include="PresentationFramework"/>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48"><Version>1.0.3</Version><PrivateAssets>All</PrivateAssets></PackageReference>
+    <ApplicationDefinition Include="App.xaml"/>
+    <Page Include="Views\*.xaml"/>
+    <Compile Include="**\*.cs" Exclude="obj\**;bin\**"/>
+    <EmbeddedResource Include="Resources\Strings.resx"/>
+    <EmbeddedResource Include="Resources\English.resx"/>
+    <None Include="app.manifest"/><None Include="App.config"/>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

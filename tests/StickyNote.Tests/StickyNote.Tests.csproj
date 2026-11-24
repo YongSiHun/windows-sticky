@@ -1,0 +1,16 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')"/>
+ <PropertyGroup>
+  <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration><Platform Condition="'$(Platform)' == ''">x64</Platform>
+  <ProjectGuid>{ECB60576-AE27-405D-9842-1B8FAD55AE67}</ProjectGuid><OutputType>Exe</OutputType><AssemblyName>StickyNote.Tests</AssemblyName>
+  <TargetFrameworkVersion>v4.8</TargetFrameworkVersion><LangVersion>5</LangVersion><PlatformTarget>$(Platform)</PlatformTarget>
+  <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>
+ </PropertyGroup>
+ <ItemGroup>
+  <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Xaml"/><Reference Include="WindowsBase"/><Reference Include="PresentationCore"/><Reference Include="PresentationFramework"/>
+  <ProjectReference Include="..\..\src\StickyNote\StickyNote.csproj"><Project>{A3142C21-8A03-41D8-9EB3-17933227A441}</Project><Name>StickyNote</Name></ProjectReference>
+  <Compile Include="Program.cs"/>
+  <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48"><Version>1.0.3</Version><PrivateAssets>All</PrivateAssets></PackageReference>
+ </ItemGroup>
+ <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
+</Project>

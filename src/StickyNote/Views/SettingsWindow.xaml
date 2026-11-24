@@ -1,0 +1,13 @@
+<Window x:Class="StickyNote.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="460" Height="560" MinWidth="420" MinHeight="440" WindowStartupLocation="CenterScreen" Background="#F7F7F4">
+ <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
+  <CheckBox x:Name="Startup" Margin="0,0,0,14"/>
+  <TextBlock x:Name="BackgroundLabel"/><ComboBox x:Name="BackgroundChoice" IsEditable="True" Margin="0,4,0,10"/>
+  <TextBlock x:Name="ForegroundLabel"/><TextBox x:Name="ForegroundInput" Margin="0,4,0,10" MaxLength="7"/>
+  <TextBlock x:Name="FontLabel"/><TextBox x:Name="FontInput" Margin="0,4,0,10"/>
+  <TextBlock x:Name="OpacityLabel"/><Slider x:Name="OpacityInput" Minimum="0.3" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,4,0,10"/>
+  <TextBlock x:Name="ModeLabel"/><ComboBox x:Name="ModeChoice" Margin="0,4,0,10"/>
+  <TextBlock x:Name="LanguageLabel"/><ComboBox x:Name="LanguageChoice" Margin="0,4,0,10"/>
+  <TextBlock x:Name="DefaultsHint" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10"/>
+  <WrapPanel><Button x:Name="ExportButton" Click="ExportClick"/><Button x:Name="RestoreButton" Click="RestoreClick"/><Button x:Name="SaveButton" Click="SaveClick" IsDefault="True"/></WrapPanel>
+ </StackPanel></ScrollViewer>
+</Window>

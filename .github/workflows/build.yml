@@ -1,0 +1,26 @@
+name: Build
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        platform: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore and build
+        run: msbuild StickyNote.sln /restore /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:RestoreConfigFile="$pwd\NuGet.Config"
+      - name: Regression suite
+        run: |
+          & ".\tests\StickyNote.Tests\bin\${{ matrix.platform }}\Release\StickyNote.Tests.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sticky-note-${{ matrix.platform }}
+          path: src/StickyNote/bin/${{ matrix.platform }}/Release/
