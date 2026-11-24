@@ -1,2 +1,2 @@
-# windows_sticky
+# windows-sticky
 윈도우 스티커 메모장
