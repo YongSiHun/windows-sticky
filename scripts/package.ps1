@@ -65,7 +65,7 @@ foreach ($platform in @('x86', 'x64')) {
     try {
         & $CompilerPath "/DPlatform=$platform" "/DRepository=$repository" "/DRuntime=$RuntimePath" "/DOutput=$temporary" "/DAppVersion=$appVersion" (Join-Path $PSScriptRoot 'setup.iss')
         if ($LASTEXITCODE -ne 0) { throw "Installer compile failed: $platform" }
-        $name = "sticky_note_setup_$platform.exe"
+        $name = "windows_stricky_setup_$platform.exe"
         $source = Join-Path $temporary $name
         $target = Join-Path $output $name
         $stream = [IO.File]::Open($source, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite)

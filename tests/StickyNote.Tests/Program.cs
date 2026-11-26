@@ -47,6 +47,7 @@ namespace StickyNote.Tests
             Run("startup defaults preserve opt-out and system language", StartupDefaults);
             Run("inline title and note sliders update model", NoteControls);
             Run("RGB picker updates preview and selected color", ColorControls);
+            Run("font selection persists and old documents retain defaults", FontControls);
             Run("version checks reject malformed responses", VersionChecks);
             Run("settings expose color buttons sliders and version without language picker", SettingsControls);
             Console.WriteLine("Passed: " + passed + ", Failed: " + failures); return failures == 0 ? 0 : 1;
@@ -193,7 +194,7 @@ namespace StickyNote.Tests
             }
         }
 
-        // QA: note create edit duplicate hide show delete and manager search.
+        // QA: note create edit duplicate hide show and delete.
         private static void NoteOperations()
         {
             int changes = 0; var log = new LogService(Path.Combine(root, "ui"));
@@ -201,9 +202,6 @@ namespace StickyNote.Tests
             {
                 var n = service.Create(); n.content = "searchable"; var copy = service.Create(n);
                 Equal(false, n.id == copy.id); Equal(n.content, copy.content); service.Hide(n); Equal(false, n.isVisible); service.Show(n); Equal(true, n.isVisible);
-                var manager = new StickyNote.ViewModels.NoteManagerViewModel(service);
-                manager.Search = "searchable"; Equal(2, manager.Notes.Cast<Note>().Count());
-                manager.Search = "absent"; Equal(0, manager.Notes.Cast<Note>().Count());
                 service.Delete(copy); Equal(1, service.Notes.Count); Equal(true, changes > 4);
             }
         }
@@ -423,7 +421,14 @@ namespace StickyNote.Tests
                 Equal(null, window.FindName("ModeStatus"));
                 var headers = window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(item => item.Header).ToArray();
                 Equal(true, headers.Contains(Loc.Get("Settings")));
-                Equal(true, headers.Contains(Loc.Get("Manager")));
+                Equal(false, headers.Contains(Loc.Get("Manager")));
+                Equal(false, headers.Contains(Loc.Get("Hide")));
+                Equal(true, headers.Contains(Loc.Get("FontFamily")));
+                Equal(Loc.Get("Opacity"), ((System.Windows.Documents.Run)window.FindName("OpacityLabel")).Text);
+                Equal(Loc.Get("FontSizeShort"), ((System.Windows.Documents.Run)window.FindName("FontLabel")).Text);
+                Equal(Loc.Get("Delete"), ((System.Windows.Controls.Button)window.FindName("DeleteButton")).ToolTip);
+                Equal(true, window.ShowInTaskbar);
+                note.fontFamily = "Arial"; Pump(20); Equal("Arial", editor.FontFamily.Source);
                 Equal(false, headers.Contains("Rename"));
                 Equal("After", service.Snapshot().notes.notes.Single().title);
                 SavePreview(window, "note-preview.png");
@@ -437,12 +442,42 @@ namespace StickyNote.Tests
             try
             {
                 Equal("#123456", dialog.SelectedColor);
-                var sliders = ((System.Windows.Controls.StackPanel)dialog.Content).Children.OfType<System.Windows.Controls.Slider>().ToArray();
-                Equal(3, sliders.Length);
-                sliders[0].Value = 255; sliders[1].Value = 0; sliders[2].Value = 128;
+                var panel = (System.Windows.Controls.StackPanel)((System.Windows.Controls.ScrollViewer)dialog.Content).Content;
+                var sliders = panel.Children.OfType<System.Windows.Controls.Slider>().ToArray();
+                Equal(4, sliders.Length);
+                sliders[1].Value = 255; sliders[2].Value = 0; sliders[3].Value = 128;
                 Equal("#FF0080", dialog.SelectedColor);
+                sliders[0].Value = 120;
+                dialog.SelectAt(1, 0); Equal("#00FF00", dialog.SelectedColor);
+                dialog.SelectAt(0, 0); Equal("#FFFFFF", dialog.SelectedColor);
+                dialog.SelectAt(2, 2); Equal("#000000", dialog.SelectedColor);
+                var palette = panel.Children.OfType<System.Windows.Controls.Primitives.UniformGrid>().Single();
+                Equal(32, palette.Children.Count);
+                var swatch = (System.Windows.Controls.Button)palette.Children[0];
+                swatch.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                Equal((string)swatch.Tag, dialog.SelectedColor);
                 dialog.Show(); Pump(30);
                 SavePreview(dialog, "color-preview.png");
+            }
+            finally { dialog.Close(); }
+        }
+        // QA: fonts are editable, cloned, backed up and optional in existing schema 1 data.
+        private static void FontControls()
+        {
+            var data = Data("font"); data.notes.notes[0].fontFamily = "Arial"; data.settings.fontFamily = "Consolas";
+            var copy = StorageService.ReadBackup(Json.Write(data));
+            Equal("Arial", copy.notes.notes[0].Clone().fontFamily); Equal("Consolas", copy.settings.fontFamily);
+            var legacy = Json.Write(Data("old")).Replace("\"fontFamily\":\"Segoe UI\",", "");
+            var old = StorageService.ReadBackup(legacy);
+            Equal("Segoe UI", old.notes.notes[0].fontFamily); Equal("Segoe UI", old.settings.fontFamily);
+            Equal("normal", new Settings().displayMode); Equal("normal", new Note().displayMode);
+            Throws(() => Validation.Settings(new Settings { fontFamily = null }));
+            var dialog = new StickyNote.Views.FontWindow("Segoe UI");
+            try
+            {
+                dialog.FontChoice.SelectedItem = "Arial";
+                Equal("Arial", dialog.SelectedFont); Equal("Arial", dialog.Preview.FontFamily.Source);
+                dialog.Show(); Pump(20); SavePreview(dialog, "font-preview.png");
             }
             finally { dialog.Close(); }
         }
@@ -475,10 +510,10 @@ namespace StickyNote.Tests
             using (var stream = new FileStream(path + ".tmp", FileMode.CreateNew)) { encoder.Save(stream); stream.Flush(true); }
             File.Move(path + ".tmp", path);
         }
-        // QA: load real app styles without starting storage, tray or startup registration.
+        // QA: inspect settings and launch behavior without starting storage, tray or registry code.
         private static void SettingsControls()
         {
-            var app = new App(); app.InitializeComponent();
+            var app = new TestApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             using (var service = new NoteService(new Settings(), () => { }, new LogService(Path.Combine(root, "settings-ui"))))
             {
                 typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[] { service });
@@ -492,11 +527,29 @@ namespace StickyNote.Tests
                     Equal(true, window.FindName("BackgroundButton") is System.Windows.Controls.Button);
                     Equal(true, window.FindName("ForegroundButton") is System.Windows.Controls.Button);
                     Equal(true, window.FindName("FontInput") is System.Windows.Controls.Slider);
+                    Equal(true, window.FindName("FontFamilyButton") is System.Windows.Controls.Button);
                     Equal(UpdateService.Current.ToString(3), ((System.Windows.Controls.TextBlock)window.FindName("VersionValue")).Text);
                     SavePreview(window, "settings-preview.png");
                 }
                 finally { window.Close(); }
+                using (var storage = Store("launch-ui"))
+                {
+                    storage.Load();
+                    typeof(App).GetField("storage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(app, storage);
+                    Equal(0, service.Notes.Count);
+                    app.OpenNotes(); Equal(1, service.Notes.Count);
+                    var first = service.Notes[0]; service.Hide(first);
+                    app.OpenNotes(); Equal(1, service.Notes.Count); Equal(true, first.isVisible);
+                    app.NewNote(); Equal(2, service.Notes.Count);
+                    app.OpenNotes(); Equal(2, service.Notes.Count);
+                    Equal(true, service.Notes.All(n => n.isVisible));
+                }
             }
+        }
+        // QA: dispatcher startup must never start real storage, tray or registry code.
+        private sealed class TestApplication : App
+        {
+            protected override void OnStartup(StartupEventArgs e) { }
         }
         // QA: isolated storage per case.
         private static StorageService Store(string name)

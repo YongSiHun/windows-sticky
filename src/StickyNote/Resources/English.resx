@@ -4,7 +4,7 @@
 <resheader name="version"><value>2.0</value></resheader>
 <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
 <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-<data name="AppTitle" xml:space="preserve"><value>Sticky Note</value></data>
+<data name="AppTitle" xml:space="preserve"><value>Windows Stricky</value></data>
 <data name="NewNote" xml:space="preserve"><value>New note</value></data>
 <data name="Hide" xml:space="preserve"><value>Hide</value></data>
 <data name="Show" xml:space="preserve"><value>Show</value></data>
@@ -65,4 +65,11 @@
 <data name="UpdateAvailable" xml:space="preserve"><value>Version {0} is available.</value></data>
 <data name="UpdateFailed" xml:space="preserve"><value>Unable to check for updates. Check your connection.</value></data>
 <data name="OpenDownloads" xml:space="preserve"><value>Open downloads</value></data>
+<data name="FontSizeShort" xml:space="preserve"><value>Font size</value></data>
+<data name="FontFamily" xml:space="preserve"><value>Font</value></data>
+<data name="FontSample" xml:space="preserve"><value>Windows Stricky
+Sample note 123</value></data>
+<data name="Palette" xml:space="preserve"><value>Preset colors</value></data>
+<data name="Hue" xml:space="preserve"><value>Hue</value></data>
+<data name="ColorDragHint" xml:space="preserve"><value>Click or drag on the color palette to select.</value></data>
 </root>

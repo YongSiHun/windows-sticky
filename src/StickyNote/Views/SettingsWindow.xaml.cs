@@ -14,7 +14,7 @@ namespace StickyNote.Views
     public partial class SettingsWindow : Window
     {
         private readonly App app;
-        private string backgroundColor, foregroundColor;
+        private string backgroundColor, foregroundColor, fontFamily;
         // INIT: wire owned state and events.
         public SettingsWindow(App app)
         {
@@ -24,6 +24,7 @@ namespace StickyNote.Views
             BackgroundButton.Content = ForegroundButton.Content = Loc.Get("ChooseColor");
             ExportButton.Content = Loc.Get("Export"); RestoreButton.Content = Loc.Get("Restore"); SaveButton.Content = Loc.Get("Save");
             backgroundColor = settings.backgroundColor; foregroundColor = settings.foregroundColor;
+            fontFamily = settings.fontFamily; FontFamilyLabel.Text = Loc.Get("FontFamily"); FontFamilyButton.Content = fontFamily;
             RefreshColors(); FontInput.Value = settings.fontSize; OpacityInput.Value = settings.opacity;
             VersionLabel.Text = Loc.Get("Version");
             VersionValue.Text = typeof(App).Assembly.GetName().Version.ToString(3);
@@ -72,6 +73,12 @@ namespace StickyNote.Views
             if (color == null) return;
             foregroundColor = color; RefreshColors();
         }
+        private void FontFamilyClick(object sender, RoutedEventArgs e)
+        {
+            var selected = FontWindow.Ask(this, fontFamily);
+            if (selected == null) return;
+            fontFamily = selected; FontFamilyButton.Content = selected;
+        }
         // RGB: selected swatches replace code input fields.
         private void RefreshColors()
         {
@@ -88,7 +95,7 @@ namespace StickyNote.Views
         // CFG: validate and persist defaults.
         private async void SaveClick(object sender, RoutedEventArgs e)
         {
-            var settings = new Settings { startWithWindows = Startup.IsChecked == true, backgroundColor = backgroundColor, foregroundColor = foregroundColor, fontSize = FontInput.Value, opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag, language = app.Notes.Settings.language };
+            var settings = new Settings { startWithWindows = Startup.IsChecked == true, backgroundColor = backgroundColor, foregroundColor = foregroundColor, fontSize = FontInput.Value, fontFamily = fontFamily, opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag, language = app.Notes.Settings.language };
             try
             {
                 Validation.Settings(settings); StartupService.Apply(settings.startWithWindows);

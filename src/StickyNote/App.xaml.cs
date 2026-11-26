@@ -19,7 +19,6 @@ namespace StickyNote
         private AutosaveService autosave;
         private TrayService tray;
         private SettingsWindow settings;
-        private NoteManagerWindow manager;
         private bool exiting, restoring, saveErrorShown;
         public NoteService Notes { get; private set; }
         public BackupService Backups { get; private set; }
@@ -82,18 +81,17 @@ namespace StickyNote
         // INIT: optional tray and startup registration.
         private void InitializeShell()
         {
-            try { tray = new TrayService(Notes, ShowManager, ShowSettings, ExitApplication); }
+            try { tray = new TrayService(Notes, NewNote, OpenNotes, ShowSettings, ExitApplication); }
             catch (Exception error) { log.Write("tray-init", error); }
-            if (storage.RecoveryBlocked || !Notes.Settings.startWithWindows) return;
-            try { StartupService.Apply(true); }
+            if (storage.RecoveryBlocked) return;
+            try { StartupService.Apply(Notes.Settings.startWithWindows); }
             catch (Exception error) { log.Write("startup-refresh", error); }
         }
         // UI: retain a usable entry point without tray.
         private void ShowInitialWindows()
         {
-            if (!storage.RecoveryBlocked && Notes.Notes.Count == 0) Notes.Create();
+            if (!storage.RecoveryBlocked) OpenNotes();
             if (tray == null || storage.RecoveryBlocked) { ShowSettings(); return; }
-            if (!Notes.Notes.Any(n => n.isVisible)) ShowManager();
         }
         // EVT: dispatcher activation and display/session changes.
         private void SubscribeEvents()
@@ -101,7 +99,7 @@ namespace StickyNote
             SystemEvents.DisplaySettingsChanged += DisplayChanged;
             SystemEvents.PowerModeChanged += PowerChanged;
             SessionEnding += Ending;
-            instance.Listen(() => Dispatcher.BeginInvoke(new Action(ShowManager)), log);
+            instance.Listen(() => Dispatcher.Invoke(new Action(OpenNotes)), log);
         }
         // REC: explain protected storage.
         private void ShowRecoveryStatus()
@@ -128,18 +126,20 @@ namespace StickyNote
             e.Cancel = true;
             Dispatcher.BeginInvoke(new Action(ExitApplication));
         }
-        // UI: hidden-note list with show/hide/delete controls.
-        public void ShowManager()
+        // UI: launch restores all saved notes, creating one only when there are none.
+        public void OpenNotes()
         {
             if (exiting || restoring) return;
-            if (manager == null) CreateManager();
-            manager.Show(); manager.WindowState = WindowState.Normal; manager.Activate();
+            if (storage.RecoveryBlocked) { ShowSettings(); return; }
+            if (Notes.Notes.Count == 0) { Notes.Create(); return; }
+            Notes.ShowAll();
         }
-        // UI: release the list window when closed.
-        private void CreateManager()
+        // UI: explicit plus/tray command adds a note.
+        public void NewNote()
         {
-            manager = new NoteManagerWindow(Notes);
-            manager.Closed += (s, e) => manager = null;
+            if (exiting || restoring) return;
+            if (storage.RecoveryBlocked) { ShowSettings(); return; }
+            Notes.Create();
         }
         // UI: create settings once and wire fallback exit.
         private void CreateSettings()

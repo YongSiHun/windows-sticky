@@ -51,17 +51,24 @@ namespace StickyNote.Services
             using (var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous))
             {
                 client.Connect(800);
-                var reply = new byte[1];
-                var read = client.ReadAsync(reply, 0, reply.Length);
-                if (Task.WhenAny(read, Task.Delay(800)).GetAwaiter().GetResult() != read)
-                {
-                    // Disposal cancels the pending read; observe its eventual failure.
-                    read.ContinueWith(task => task.Exception.Handle(error => true),
-                        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
-                    return false;
-                }
-                return read.GetAwaiter().GetResult() == 1 && reply[0] == 1;
+                uint process;
+                if (StickyNote.Interop.NativeMethods.GetNamedPipeServerProcessId(client.SafePipeHandle, out process)) StickyNote.Interop.NativeMethods.AllowSetForegroundWindow(process);
+                client.WriteByte(1);
+                return ReadSignal(client);
             }
+        }
+        // IPC: both sides use a bounded handshake; an idle client cannot hold the listener.
+        private static bool ReadSignal(System.IO.Stream stream)
+        {
+            var reply = new byte[1];
+            var read = stream.ReadAsync(reply, 0, reply.Length);
+            if (Task.WhenAny(read, Task.Delay(800)).GetAwaiter().GetResult() != read)
+            {
+                read.ContinueWith(task => task.Exception.Handle(error => true),
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+                return false;
+            }
+            return read.GetAwaiter().GetResult() == 1 && reply[0] == 1;
         }
         // IPC: start connection listener.
         public void Listen(Action activate, LogService log)
@@ -94,6 +101,7 @@ namespace StickyNote.Services
             try
             {
                 current.WaitForConnection();
+                if (!ReadSignal(current)) return true;
                 activate();
                 current.WriteByte(1);
             }

@@ -1,6 +1,6 @@
-# Sticky Note
+# Windows Stricky
 
-로컬 메모 앱 · 제목 직접 편집 · 색상·크기·투명도 슬라이더 · 자동 저장·백업
+로컬 메모 앱 · 제목 직접 편집 · 마우스 색상표·글씨체 선택 · 자동 저장·백업
 
 ## Stack
 
@@ -8,7 +8,11 @@
 - Data: 로컬 JSON · 원자적 저장 · 정상본 백업
 - QA/CI: STA 회귀 테스트 · Sonar S3776 ≤ 5 · 수동 GitHub Actions
 - Pkg: x86/x64 Setup EXE · .NET 4.8 오프라인 설치본 포함
-- UX: 한국어 설치 · 시스템 언어(ko/en) · 환경설정·메모 관리
+- UX: 한국어 설치 · 시스템 언어(ko/en) · 일반 모드 기본 · Windows 로그인 시 자동 실행
+
+실행하면 저장된 메모를 모두 열고, 메모가 없을 때만 새 메모를 만듭니다. `+`로 메모를 추가하고, `×`는 확인 후 삭제합니다. 메모 관리 화면은 없습니다. 하단에 투명도·글자 크기 이름과 값이 표시됩니다. 메모 메뉴에서 배경색·글자색·글씨체를 바꾸고 환경설정에서 새 메모의 기본 모양을 지정합니다.
+
+설치 프로그램은 시작 메뉴와 바탕화면에 `Windows Stricky` 바로가기를 만들고 현재 사용자의 자동 실행을 기본 등록합니다. 환경설정에서 자동 실행을 끌 수 있습니다. 기존 메모·설정은 이전과 같은 저장 경로를 사용합니다.
 
 ## OS
 
@@ -28,6 +32,6 @@ Dev: VS 2022 MSBuild · .NET 4.8 Dev Pack. Setup 빌드 시 인터넷 필요.
 .\scripts\package.ps1 # artifacts/ Setup EXE·SHA256
 ```
 
-GitHub: Actions → Build → Run workflow → sticky-note-setup-버전 다운로드.
+GitHub: Actions → Build → Run workflow → windows-stricky-setup-버전 다운로드.
 
 Ver: `VERSION` 수정 → 빌드·패키징. 앱·설치 파일·CI 산출물에 같은 버전 적용.

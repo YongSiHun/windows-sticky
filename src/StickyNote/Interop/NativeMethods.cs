@@ -8,6 +8,9 @@ namespace StickyNote.Interop
         internal const uint SwpNoSize = 1, SwpNoMove = 2, SwpNoActivate = 0x10, SwpFrameChanged = 0x20;
         internal const int WmWindowPosChanging = 0x46;
         internal static readonly IntPtr Bottom = new IntPtr(1), NoTopmost = new IntPtr(-2);
+        // IPC: transfer a user-initiated launch's foreground permission to the existing process.
+        [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint process);
+        [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool AllowSetForegroundWindow(uint process);
         internal delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
         // NATIVE: Win7-compatible entry point.
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);

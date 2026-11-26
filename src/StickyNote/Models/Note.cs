@@ -25,8 +25,10 @@ namespace StickyNote.Models
     {
         private string _id = Guid.NewGuid().ToString();
         public string id { get { return _id; } set { _id = value; } }
-        private string _title = "", _content = "", _background = "#FFF2AD", _foreground = "#333333", _mode = "desktop";
+        private string _title = "", _content = "", _background = "#FFF2AD", _foreground = "#333333", _mode = "normal";
         private double _font = 14, _opacity = 1, _x = 100, _y = 100, _width = 280, _height = 300;
+        private string _fontFamily = "Segoe UI";
+        public string fontFamily { get { return _fontFamily; } set { Set(ref _fontFamily, value); } }
         private bool _visible = true;
         public string title { get { return _title; } set { Set(ref _title, value); } }
         public string content { get { return _content; } set { Set(ref _content, value); } }
@@ -56,6 +58,7 @@ namespace StickyNote.Models
                 backgroundColor = backgroundColor,
                 foregroundColor = foregroundColor,
                 fontSize = fontSize,
+                fontFamily = fontFamily,
                 opacity = opacity,
                 x = x,
                 y = y,
@@ -89,10 +92,12 @@ namespace StickyNote.Models
         private string _foregroundColor = "#333333";
         public string foregroundColor { get { return _foregroundColor; } set { _foregroundColor = value; } }
         private double _fontSize = 14;
+        private string _fontFamily = "Segoe UI";
+        public string fontFamily { get { return _fontFamily; } set { _fontFamily = value; } }
         public double fontSize { get { return _fontSize; } set { _fontSize = value; } }
         private double _opacity = 1;
         public double opacity { get { return _opacity; } set { _opacity = value; } }
-        private string _displayMode = "desktop";
+        private string _displayMode = "normal";
         public string displayMode { get { return _displayMode; } set { _displayMode = value; } }
         private string _language = "ko";
         public string language { get { return _language; } set { _language = value; } }

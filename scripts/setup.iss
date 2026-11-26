@@ -16,10 +16,10 @@
 
 [Setup]
 AppId={{A3142C21-8A03-41D8-9EB3-17933227A441}
-AppName=Sticky Note
+AppName=Windows Stricky
 AppVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\StickyNote
-DefaultGroupName=Sticky Note
+DefaultGroupName=Windows Stricky
 PrivilegesRequired=lowest
 MinVersion=6.1sp1
 #if Platform == "x64"
@@ -27,7 +27,7 @@ ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 #endif
 OutputDir={#Output}
-OutputBaseFilename=sticky_note_setup_{#Platform}
+OutputBaseFilename=windows_stricky_setup_{#Platform}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -45,10 +45,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "korean"; MessagesFile: "compiler:Default.isl,{#Repository}\scripts\Korean.isl"
 
 [CustomMessages]
-english.LaunchSticky=Run Sticky Note
-korean.LaunchSticky=Sticky Note 실행
-english.UninstallSticky=Uninstall Sticky Note
-korean.UninstallSticky=Sticky Note 제거
+english.LaunchSticky=Run Windows Stricky
+korean.LaunchSticky=Windows Stricky 실행
+english.UninstallSticky=Uninstall Windows Stricky
+korean.UninstallSticky=Windows Stricky 제거
 english.RuntimeRestart=Restart Windows, then run this setup again.
 korean.RuntimeRestart=Windows를 다시 시작한 뒤 이 설치 파일을 다시 실행해 주세요.
 english.RuntimeFailed=.NET Framework installation failed (code %d). Windows 7 requires SP1 and servicing/SHA-2 updates.
@@ -64,8 +64,17 @@ Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe.con
 Source: "{#Runtime}"; DestName: "net48.exe"; Flags: dontcopy
 
 [Icons]
-Name: "{group}\Sticky Note"; Filename: "{app}\StickyNote.exe"
+Name: "{userprograms}\Windows Stricky"; Filename: "{app}\StickyNote.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\Windows Stricky"; Filename: "{app}\StickyNote.exe"; WorkingDir: "{app}"
 Name: "{group}\{cm:UninstallSticky}"; Filename: "{uninstallexe}"
+
+[InstallDelete]
+Type: files; Name: "{userprograms}\Sticky Note\Sticky Note.lnk"
+Type: files; Name: "{userprograms}\Sticky Note\Sticky Note 제거.lnk"
+Type: files; Name: "{userprograms}\Sticky Note\Uninstall Sticky Note.lnk"
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "StickyNote"; ValueData: """{app}\StickyNote.exe"""; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\StickyNote.exe"; Description: "{cm:LaunchSticky}"; Flags: nowait postinstall skipifsilent; Check: HasFramework

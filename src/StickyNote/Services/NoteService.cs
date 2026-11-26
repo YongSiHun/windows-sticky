@@ -42,10 +42,10 @@ namespace StickyNote.Services
         // NOTE: new identity and defaults or duplicate.
         public Note Create(Note original = null)
         {
-            var note = original != null ? original.Clone() : new Note { title = Loc.Get("NewNote"), backgroundColor = Settings.backgroundColor, foregroundColor = Settings.foregroundColor, fontSize = Settings.fontSize, opacity = Settings.opacity, displayMode = Settings.displayMode };
+            var note = original != null ? original.Clone() : new Note { title = Loc.Get("NewNote"), backgroundColor = Settings.backgroundColor, foregroundColor = Settings.foregroundColor, fontSize = Settings.fontSize, fontFamily = Settings.fontFamily, opacity = Settings.opacity, displayMode = Settings.displayMode };
             note.id = Guid.NewGuid().ToString(); note.createdAt = note.updatedAt = DateTime.UtcNow.ToString("o");
             if (original != null) { note.x += 24; note.y += 24; }
-            note.isVisible = true; Notes.Add(note); note.PropertyChanged += Changed; ShowWindow(note); changed(); return note;
+            note.isVisible = true; Notes.Add(note); note.PropertyChanged += Changed; ShowWindow(note); windows[note.id].ActivateEditor(); changed(); return note;
         }
         // UI: reuse existing note window.
         private void ShowWindow(Note note)
@@ -61,6 +61,7 @@ namespace StickyNote.Services
         {
             note.isVisible = true;
             ShowWindow(note);
+            windows[note.id].ActivateEditor();
         }
         // UI: release hidden editor resources.
         public void Hide(Note note)

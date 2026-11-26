@@ -12,22 +12,22 @@ namespace StickyNote.Services
         private readonly Forms.ContextMenuStrip menu;
         private readonly Icon applicationIcon;
         // INIT: wire owned state and events.
-        public TrayService(NoteService notes, Action manager, Action settings, Action exit)
+        public TrayService(NoteService notes, Action newNote, Action openNotes, Action settings, Action exit)
         {
             menu = new Forms.ContextMenuStrip();
-            Add("NewNote", () => notes.Create()); Add("Manager", manager); Add("ShowAll", notes.ShowAll); Add("HideAll", notes.HideAll);
+            Add("NewNote", newNote); Add("ShowAll", notes.ShowAll);
             menu.Items.Add(new Forms.ToolStripSeparator()); Add("Settings", settings); Add("Exit", exit);
             applicationIcon = Icon.ExtractAssociatedIcon(System.Reflection.Assembly.GetExecutingAssembly().Location);
             icon = new Forms.NotifyIcon { Icon = applicationIcon, Text = Loc.Get("AppTitle"), ContextMenuStrip = menu };
-            icon.DoubleClick += DoubleClick; openManager = manager;
+            icon.DoubleClick += DoubleClick; showNotes = openNotes;
             try { icon.Visible = true; }
             catch { icon.Dispose(); applicationIcon.Dispose(); menu.Dispose(); throw; }
         }
-        private readonly Action openManager;
-        // UI: activate manager on dispatcher.
+        private readonly Action showNotes;
+        // UI: reopen existing editors on dispatcher.
         private void DoubleClick(object s, EventArgs e)
         {
-            Application.Current.Dispatcher.BeginInvoke(openManager);
+            Application.Current.Dispatcher.BeginInvoke(showNotes);
         }
         // UI: add localized action.
         private void Add(string key, Action action)

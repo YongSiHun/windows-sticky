@@ -10,6 +10,12 @@ namespace StickyNote.Utilities
     public static class Validation
     {
         public static readonly string[] Colors = { "#FFF2AD", "#D6EDB0", "#C5E5F5", "#F8D2DF", "#E3D5F5", "#FFFFFF", "#DDDDDD" };
+        public static readonly string[] Palette = {
+            "#FFF2AD", "#D6EDB0", "#C5E5F5", "#F8D2DF", "#E3D5F5", "#FFFFFF", "#DDDDDD", "#333333",
+            "#FFE082", "#AED581", "#81D4FA", "#F48FB1", "#CE93D8", "#FFCCBC", "#B0BEC5", "#000000",
+            "#FFC107", "#4CAF50", "#2196F3", "#E91E63", "#9C27B0", "#FF5722", "#607D8B", "#795548",
+            "#FF8F00", "#1B5E20", "#0D47A1", "#880E4F", "#4A148C", "#BF360C", "#37474F", "#3E2723"
+        };
         private static readonly Regex ColorPattern = new Regex("^#[0-9A-Fa-f]{6}$");
         private static readonly string[] Modes = { "normal", "topmost", "desktop" };
 
@@ -53,6 +59,7 @@ namespace StickyNote.Utilities
             Require(settings != null);
             Require(settings.schemaVersion == 1);
             Require(settings.language == "ko" || settings.language == "en");
+            Require(FontName(settings.fontFamily));
             Style(settings.backgroundColor, settings.foregroundColor, settings.displayMode, settings.fontSize, settings.opacity);
         }
         // DOC: bounded collection, unique IDs.
@@ -74,6 +81,7 @@ namespace StickyNote.Utilities
             Require(ids.Add(note.id));
             Require(Text(note.title, 500));
             Require(Text(note.content, 1000000));
+            Require(FontName(note.fontFamily));
             Style(note.backgroundColor, note.foregroundColor, note.displayMode, note.fontSize, note.opacity);
             Require(Range(note.x, -1000000, 1000000));
             Require(Range(note.y, -1000000, 1000000));
@@ -86,6 +94,11 @@ namespace StickyNote.Utilities
         private static bool Text(string value, int limit)
         {
             return value != null && value.Length <= limit;
+        }
+        // FONT: absent typefaces use WPF fallback; persisted names remain portable.
+        private static bool FontName(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.Length <= 200 && value.IndexOfAny(new[] { '\r', '\n', '\0' }) < 0;
         }
         // UTC: round-trip timestamp.
         private static bool Utc(string value)

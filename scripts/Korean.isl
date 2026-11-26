@@ -1,4 +1,4 @@
-﻿; Sticky Note installer messages for Inno Setup 6.2.2.
+﻿; Windows Stricky installer messages for Inno Setup 6.2.2.
 ; Layered over compiler:Default.isl; no download required.
 [LangOptions]
 LanguageName=한국어
