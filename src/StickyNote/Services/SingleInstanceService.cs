@@ -17,9 +17,15 @@ namespace StickyNote.Services
         public bool IsFirst { get; private set; }
         // INIT: wire owned state and events.
         public SingleInstanceService()
+            : this(null)
+        {
+        }
+        // QA: isolate test mutexes and pipes from the running application.
+        internal SingleInstanceService(string scope)
         {
             var sid = WindowsIdentity.GetCurrent().User;
             name = "StickyNote-" + sid.Value + "-" + System.Diagnostics.Process.GetCurrentProcess().SessionId;
+            if (scope != null) name += "-" + scope;
             var security = new MutexSecurity(); security.AddAccessRule(new MutexAccessRule(sid, MutexRights.FullControl, AccessControlType.Allow));
             bool created; mutex = new Mutex(true, @"Local\" + name, out created, security); IsFirst = created;
         }
@@ -28,11 +34,25 @@ namespace StickyNote.Services
         {
             for (int i = 0; i < 3; i++) try
             {
-                // Connection itself is the activation signal; no payload/close race.
-                using (var client = new NamedPipeClientStream(".", name, PipeDirection.Out)) { client.Connect(800); return true; }
+                if (ConnectAndWaitForActivation()) return true;
             }
             catch (TimeoutException) { } catch (System.IO.IOException) { }
             return false;
+        }
+        // IPC: keep the connection alive until activation is acknowledged.
+        private bool ConnectAndWaitForActivation()
+        {
+            using (var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous))
+            {
+                client.Connect(800);
+                var reply = new byte[1];
+                var read = client.BeginRead(reply, 0, reply.Length, null, null);
+                using (var completed = read.AsyncWaitHandle)
+                {
+                    if (!completed.WaitOne(800)) return false;
+                    return client.EndRead(read) == 1 && reply[0] == 1;
+                }
+            }
         }
         // IPC: start connection listener.
         public void Listen(Action activate, LogService log)
@@ -51,9 +71,9 @@ namespace StickyNote.Services
             var security = new PipeSecurity();
             security.SetAccessRuleProtection(true, false);
             security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
-            return new NamedPipeServerStream(name, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
+            return new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
         }
-        // IPC: connection is activation; no payload wait.
+        // IPC: acknowledge only after the activation callback has run.
         private bool Accept(Action activate)
         {
             NamedPipeServerStream current;
@@ -62,9 +82,17 @@ namespace StickyNote.Services
                 if (disposed) return false;
                 current = server = CreateServer();
             }
-            current.WaitForConnection();
-            if (current.IsConnected) activate();
-            lock (sync) { current.Dispose(); if (server == current) server = null; }
+            try
+            {
+                current.WaitForConnection();
+                activate();
+                current.WriteByte(1);
+            }
+            catch (System.IO.IOException) { /* A timed-out client must not stop the listener. */ }
+            finally
+            {
+                lock (sync) { current.Dispose(); if (server == current) server = null; }
+            }
             return true;
         }
         // ERR: ignore expected shutdown interruption.

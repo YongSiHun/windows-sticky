@@ -9,6 +9,8 @@ using StickyNote.Models;
 using StickyNote.Services;
 using StickyNote.Utilities;
 
+[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+
 namespace StickyNote.Tests
 {
     internal static class Program
@@ -17,8 +19,9 @@ namespace StickyNote.Tests
         private static string root;
         // QA: run independent regression cases.
         [STAThread]
-        private static int Main()
+        private static int Main(string[] args)
         {
+            if (args.Length == 2 && args[0] == "--signal-instance") return SignalInstance(args[1]);
             root = Path.Combine(Environment.CurrentDirectory, "TestResults", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
             Run("UTF-8 JSON round trip and UTC", JsonRoundTrip);
             Run("schema migration boundary rejects unknown and missing versions", SchemaBoundary);
@@ -36,6 +39,8 @@ namespace StickyNote.Tests
             Run("localized resources embedded", Localization);
             Run("native mode transitions preserve visibility opacity and parent", NativeTransitions);
             Run("single instance IPC activates first instance", InstanceActivation);
+            Run("single instance IPC acknowledges activation before success", InstanceAcknowledgment);
+            Run("single instance IPC accepts repeated child processes", InstanceProcesses);
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
             Console.WriteLine("Passed: " + passed + ", Failed: " + failures); return failures == 0 ? 0 : 1;
@@ -229,17 +234,78 @@ namespace StickyNote.Tests
         // QA: single instance IPC activates first instance.
         private static void InstanceActivation()
         {
-            using (var first = new SingleInstanceService())
+            var scope = Guid.NewGuid().ToString("N");
+            using (var first = new SingleInstanceService(scope))
             {
                 Equal(true, first.IsFirst);
                 using (var activated = new ManualResetEvent(false))
                 {
                     first.Listen(() => activated.Set(), new LogService(Path.Combine(root, "ipc")));
-                    using (var second = new SingleInstanceService())
+                    using (var second = new SingleInstanceService(scope))
                     {
                         Equal(false, second.IsFirst); Equal(true, second.Signal()); Equal(true, activated.WaitOne(3000));
                     }
                 }
+            }
+        }
+        // QA: success must wait for the callback, even when it is delayed.
+        private static void InstanceAcknowledgment()
+        {
+            var scope = Guid.NewGuid().ToString("N");
+            using (var entered = new ManualResetEvent(false))
+            using (var release = new ManualResetEvent(false))
+            using (var first = new SingleInstanceService(scope))
+            using (var second = new SingleInstanceService(scope))
+            {
+                first.Listen(() => { entered.Set(); release.WaitOne(5000); }, new LogService(Path.Combine(root, "ipc-ack")));
+                var signal = Task.Run(() => second.Signal());
+                try
+                {
+                    Equal(true, entered.WaitOne(3000));
+                    Equal(false, signal.IsCompleted);
+                }
+                finally { release.Set(); signal.Wait(5000); }
+                Equal(true, signal.Result);
+            }
+        }
+        // QA: exercise the real process boundary and listener re-arming.
+        private static void InstanceProcesses()
+        {
+            var scope = Guid.NewGuid().ToString("N");
+            using (var first = new SingleInstanceService(scope))
+            {
+                int activations = 0;
+                first.Listen(() => Interlocked.Increment(ref activations), new LogService(Path.Combine(root, "ipc-process")));
+                for (int i = 1; i <= 10; i++)
+                {
+                    RunSignalProcess(scope);
+                    Equal(i, Interlocked.CompareExchange(ref activations, 0, 0));
+                }
+            }
+        }
+        // QA: only the isolated test child can be terminated on timeout.
+        private static void RunSignalProcess(string scope)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(typeof(Program).Assembly.Location, "--signal-instance " + scope);
+            start.UseShellExecute = false;
+            start.CreateNoWindow = true;
+            using (var child = System.Diagnostics.Process.Start(start))
+            {
+                if (!child.WaitForExit(10000))
+                {
+                    child.Kill(); child.WaitForExit();
+                    throw new TimeoutException("IPC test child did not exit.");
+                }
+                Equal(0, child.ExitCode);
+            }
+        }
+        // QA: secondary process uses the same user/session-scoped IPC path.
+        private static int SignalInstance(string scope)
+        {
+            using (var second = new SingleInstanceService(scope))
+            {
+                if (second.IsFirst) return 2;
+                return second.Signal() ? 0 : 3;
             }
         }
         // QA: restore must not transcode corrupt originals.
