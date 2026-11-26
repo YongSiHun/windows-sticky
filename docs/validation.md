@@ -1,5 +1,16 @@
 # 실행 검증
 
+## 패키징 다운로드 수정 (2026-11-26)
+
+제공된 Actions 로그에서 패키징 다운로드가 404로 실패했습니다. 스크립트의 구버전 Inno 다운로드 주소를 [공식 구버전 안내](https://jrsoftware.org/inno-setup/downloads/old)가 연결하는 [6.2.2 GitHub 릴리스](https://github.com/jrsoftware/issrc/releases/tag/is-6_2_2)의 고정 에셋 주소로 변경했습니다. 버전은 6.2.2로 유지합니다.
+
+기존 `Jordan Russell` 서명자 검사는 [공식 서명 안내](https://jrsoftware.org/inno-setup/downloads/verify)에 맞춰 `Open Source Developer, Martijn Laan`으로 수정했습니다. [공식 에셋 목록](https://github.com/jrsoftware/issrc/releases/expanded_assets/is-6_2_2)의 SHA-256 `8117d10d00a2ad33a1390978ea3872861c330e087914410a6377b22c4c5b8563`도 검사합니다. 다운로드 오류에는 요청 URL을 포함하며 실패한 임시 파일은 제거합니다.
+
+- PowerShell 구문 및 모의 다운로드 검증 통과: 정상 다운로드·캐시 사용·게시자/해시/서명 불일치 거부·404 URL 표시·부분 파일 정리.
+- 로컬 Framework MSBuild x86/x64 Release 빌드 성공, 회귀 테스트 각각 **21 통과 / 0 실패**.
+- 로컬 `/restore`는 양쪽 모두 NuGet 설정 접근 거부로 실패했습니다. 실제 패키징은 Microsoft 런타임 서버 연결 제한으로 중단됐습니다. EXE 다운로드·Authenticode 실물 검증·설치 파일 생성 및 수정 후 원격 Actions는 미검증입니다.
+- 로컬 검증 로그: `TestResults/package-url-fix/` (Git 제외). 모의 검증은 실제 에셋 검증을 대체하지 않습니다.
+
 ## S3776 수정 검증 (2026-11-26)
 
 제공된 GitHub Actions 로그에서 패키지 복원은 성공했으나 `SingleInstanceService.Signal()`이 인지복잡도 7로 측정돼 임계값 5를 초과했습니다. 루프 안의 `try/catch`와 성공 분기가 함께 중첩된 것이 원인입니다. 예외 처리를 `TryActivate()`로 분리하고 `Signal()`은 최대 3회 반복과 성공 시 반환만 담당하도록 수정했습니다. 연결·응답 제한 시간, 활성화 응답 확인 및 재시도 대상 예외는 유지합니다. S3776 임계값과 오류 설정은 변경하지 않았습니다.

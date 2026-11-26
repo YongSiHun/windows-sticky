@@ -11,22 +11,25 @@ $cache = Join-Path $repository '.buildprofile\installer'
 New-Item -ItemType Directory -Force -Path $output, $cache | Out-Null
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# SIG: accept trusted publisher only; never execute partial downloads.
-function Assert-Publisher([string]$Path, [string]$Publisher) {
+# SIG: check pinned hash when supplied, then validate trusted publisher.
+function Assert-Publisher([string]$Path, [string]$Publisher, [string]$ExpectedHash) {
+    if ($ExpectedHash -and (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $ExpectedHash) { throw "Unexpected SHA256: $Path" }
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne 'Valid') { throw "Invalid signature: $Path" }
     if ($signature.SignerCertificate.Subject -notmatch $Publisher) { throw "Unexpected publisher: $Path" }
 }
 
 # GET: build-time download; target machines need no network.
-function Get-Payload([string]$Url, [string]$Path, [string]$Publisher) {
-    if (Test-Path -LiteralPath $Path) { Assert-Publisher $Path $Publisher; return }
+function Get-Payload([string]$Url, [string]$Path, [string]$Publisher, [string]$ExpectedHash) {
+    if (Test-Path -LiteralPath $Path) { Assert-Publisher $Path $Publisher $ExpectedHash; return }
     $temporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp.exe'
     try {
+        Write-Host "Downloading: $Url"
         Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $temporary
-        Assert-Publisher $temporary $Publisher
+        Assert-Publisher $temporary $Publisher $ExpectedHash
         Move-Item -LiteralPath $temporary -Destination $Path
     }
+    catch { throw "Payload failed [$Url]: $($_.Exception.Message)" }
     finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
 }
 
@@ -42,7 +45,8 @@ if (!$CompilerPath) {
     $CompilerPath = Join-Path $cache 'inno\ISCC.exe'
     if (!(Test-Path -LiteralPath $CompilerPath)) {
         $installer = Join-Path $cache 'innosetup-6.2.2.exe'
-        Get-Payload 'https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe' $installer 'Jordan Russell'
+        # SRC: official immutable release; hash and legacy signer from publisher docs.
+        Get-Payload 'https://github.com/jrsoftware/issrc/releases/download/is-6_2_2/innosetup-6.2.2.exe' $installer 'Open Source Developer, Martijn Laan' '8117d10d00a2ad33a1390978ea3872861c330e087914410a6377b22c4c5b8563'
         $directory = Join-Path $cache 'inno'
         $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', ('/DIR="' + $directory + '"')) -WindowStyle Hidden -Wait -PassThru
         if ($process.ExitCode -ne 0) { throw "Compiler setup failed: $($process.ExitCode)" }
