@@ -18,7 +18,6 @@ namespace StickyNote.Services
         private readonly Action changed;
         private readonly LogService log;
         public Settings Settings { get; set; }
-        public event EventHandler OpenManager;
         // INIT: wire owned state and events.
         public NoteService(Settings settings, Action changed, LogService log)
         {
@@ -86,11 +85,6 @@ namespace StickyNote.Services
         public void HideAll()
         {
             foreach (var note in Notes) Hide(note);
-        }
-        // UI: request note manager.
-        public void Manage()
-        {
-            if (OpenManager != null) OpenManager(this, EventArgs.Empty);
         }
         // COPY: capture detached state on owner dispatcher.
         public BackupDocument Snapshot()

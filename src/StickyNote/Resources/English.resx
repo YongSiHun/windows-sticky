@@ -18,7 +18,7 @@
 <data name="DeleteConfirm" xml:space="preserve"><value>Delete this note? This cannot be undone.</value></data>
 <data name="Duplicate" xml:space="preserve"><value>Duplicate</value></data>
 <data name="Background" xml:space="preserve"><value>Background color</value></data>
-<data name="Foreground" xml:space="preserve"><value>Text color (#RRGGBB)</value></data>
+<data name="Foreground" xml:space="preserve"><value>Text color</value></data>
 <data name="FontSize" xml:space="preserve"><value>Font size (8–72)</value></data>
 <data name="Opacity" xml:space="preserve"><value>Opacity</value></data>
 <data name="Mode" xml:space="preserve"><value>Display mode</value></data>
@@ -34,20 +34,17 @@
 <data name="Color5" xml:space="preserve"><value>White</value></data>
 <data name="Color6" xml:space="preserve"><value>Gray</value></data>
 <data name="Custom" xml:space="preserve"><value>Custom</value></data>
-<data name="ColorHint" xml:space="preserve"><value>Color (#RRGGBB)</value></data>
 <data name="Invalid" xml:space="preserve"><value>Invalid input.</value></data>
 <data name="Save" xml:space="preserve"><value>Save</value></data>
 <data name="ShowAll" xml:space="preserve"><value>Show all</value></data>
 <data name="HideAll" xml:space="preserve"><value>Hide all</value></data>
 <data name="Startup" xml:space="preserve"><value>Start with Windows</value></data>
-<data name="Language" xml:space="preserve"><value>Language</value></data>
-<data name="DefaultsHint" xml:space="preserve"><value>Defaults apply to new notes. Language changes apply after restarting.</value></data>
+<data name="DefaultsHint" xml:space="preserve"><value>Defaults apply to new notes.</value></data>
 <data name="Export" xml:space="preserve"><value>Export backup</value></data>
 <data name="Restore" xml:space="preserve"><value>Restore backup</value></data>
-<data name="RestartLanguage" xml:space="preserve"><value>Restart to apply the language change.</value></data>
 <data name="Success" xml:space="preserve"><value>Completed.</value></data>
 <data name="RestoreConfirm" xml:space="preserve"><value>Replace notes and settings with this backup? Current data will be backed up first.</value></data>
-<data name="RestoreSuccess" xml:space="preserve"><value>Restored. Restart to apply the restored language.</value></data>
+<data name="RestoreSuccess" xml:space="preserve"><value>Restored.</value></data>
 <data name="Exit" xml:space="preserve"><value>Exit</value></data>
 <data name="SaveError" xml:space="preserve"><value>Unable to save. Check disk space and permissions, and export a backup.</value></data>
 <data name="InstanceUnavailable" xml:space="preserve"><value>Unable to contact the running instance. Try again shortly.</value></data>
@@ -56,5 +53,16 @@
 <data name="StartupError" xml:space="preserve"><value>Unable to start. Check data folder permissions and logs.</value></data>
 <data name="OperationError" xml:space="preserve"><value>Unable to complete the operation. Check input, file permissions and disk space.</value></data>
 <data name="ExitSaveError" xml:space="preserve"><value>Saving failed. Exit without saving? Choose No to return.</value></data>
-<data name="Rename" xml:space="preserve"><value>Rename</value></data>
+<data name="ChooseColor" xml:space="preserve"><value>Choose color</value></data>
+<data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+<data name="Red" xml:space="preserve"><value>Red (R)</value></data>
+<data name="Green" xml:space="preserve"><value>Green (G)</value></data>
+<data name="Blue" xml:space="preserve"><value>Blue (B)</value></data>
+<data name="Version" xml:space="preserve"><value>Version</value></data>
+<data name="CheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+<data name="CheckingUpdates" xml:space="preserve"><value>Checking for updates…</value></data>
+<data name="LatestVersion" xml:space="preserve"><value>You have the latest version.</value></data>
+<data name="UpdateAvailable" xml:space="preserve"><value>Version {0} is available.</value></data>
+<data name="UpdateFailed" xml:space="preserve"><value>Unable to check for updates. Check your connection.</value></data>
+<data name="OpenDownloads" xml:space="preserve"><value>Open downloads</value></data>
 </root>

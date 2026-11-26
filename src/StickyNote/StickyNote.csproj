@@ -9,6 +9,8 @@
     <PlatformTarget>$(Platform)</PlatformTarget><Prefer32Bit>false</Prefer32Bit>
     <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath><ApplicationManifest>app.manifest</ApplicationManifest>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <ApplicationIcon>Assets\App.ico</ApplicationIcon>
+    <AppVersion>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\VERSION').Trim())</AppVersion>
     <DebugSymbols Condition="'$(Configuration)' == 'Debug'">true</DebugSymbols>
     <DefineConstants Condition="'$(Configuration)' == 'Debug'">DEBUG;TRACE</DefineConstants>
     <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
@@ -23,7 +25,12 @@
     <Compile Include="**\*.cs" Exclude="obj\**;bin\**"/>
     <EmbeddedResource Include="Resources\Strings.resx"/>
     <EmbeddedResource Include="Resources\English.resx"/>
+    <Resource Include="Assets\App.ico"/>
     <None Include="app.manifest"/><None Include="App.config"/>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="GenerateAppVersion" BeforeTargets="CoreCompile">
+    <WriteLinesToFile File="$(IntermediateOutputPath)AppVersion.cs" Lines="[assembly: System.Reflection.AssemblyVersion(&quot;$(AppVersion)&quot;)]&#xA;[assembly: System.Reflection.AssemblyFileVersion(&quot;$(AppVersion)&quot;)]" Overwrite="true" />
+    <ItemGroup><Compile Include="$(IntermediateOutputPath)AppVersion.cs" /></ItemGroup>
+  </Target>
 </Project>

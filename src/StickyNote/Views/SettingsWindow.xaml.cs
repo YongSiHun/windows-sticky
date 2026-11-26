@@ -1,8 +1,8 @@
 using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Win32;
 using StickyNote.Models;
 using StickyNote.Services;
@@ -14,30 +14,85 @@ namespace StickyNote.Views
     public partial class SettingsWindow : Window
     {
         private readonly App app;
+        private string backgroundColor, foregroundColor;
         // INIT: wire owned state and events.
         public SettingsWindow(App app)
         {
             this.app = app; InitializeComponent(); var settings = app.Notes.Settings;
             Title = Loc.Get("Settings"); Startup.Content = Loc.Get("Startup"); Startup.IsChecked = settings.startWithWindows;
-            BackgroundLabel.Text = Loc.Get("Background"); ForegroundLabel.Text = Loc.Get("Foreground"); FontLabel.Text = Loc.Get("FontSize"); OpacityLabel.Text = Loc.Get("Opacity"); ModeLabel.Text = Loc.Get("Mode"); LanguageLabel.Text = Loc.Get("Language"); DefaultsHint.Text = Loc.Get("DefaultsHint");
+            BackgroundLabel.Text = Loc.Get("Background"); ForegroundLabel.Text = Loc.Get("Foreground"); FontLabel.Text = Loc.Get("FontSize"); OpacityLabel.Text = Loc.Get("Opacity"); ModeLabel.Text = Loc.Get("Mode"); DefaultsHint.Text = Loc.Get("DefaultsHint");
+            BackgroundButton.Content = ForegroundButton.Content = Loc.Get("ChooseColor");
             ExportButton.Content = Loc.Get("Export"); RestoreButton.Content = Loc.Get("Restore"); SaveButton.Content = Loc.Get("Save");
-            foreach (var color in Validation.Colors) BackgroundChoice.Items.Add(color); BackgroundChoice.Text = settings.backgroundColor;
-            ForegroundInput.Text = settings.foregroundColor; FontInput.Text = settings.fontSize.ToString(CultureInfo.CurrentCulture); OpacityInput.Value = settings.opacity;
+            backgroundColor = settings.backgroundColor; foregroundColor = settings.foregroundColor;
+            RefreshColors(); FontInput.Value = settings.fontSize; OpacityInput.Value = settings.opacity;
+            VersionLabel.Text = Loc.Get("Version");
+            VersionValue.Text = typeof(App).Assembly.GetName().Version.ToString(3);
+            UpdateButton.Content = Loc.Get("CheckUpdates"); DownloadsButton.Content = Loc.Get("OpenDownloads");
             foreach (var mode in new[] { "desktop", "normal", "topmost" }) ModeChoice.Items.Add(new ComboBoxItem { Content = Loc.Get(mode), Tag = mode });
             ModeChoice.SelectedIndex = Array.IndexOf(new[] { "desktop", "normal", "topmost" }, settings.displayMode);
-            LanguageChoice.Items.Add("한국어"); LanguageChoice.Items.Add("English"); LanguageChoice.SelectedIndex = settings.language == "en" ? 1 : 0;
+        }
+        // VER: check on demand; never block editing with network I/O.
+        private async void CheckUpdatesClick(object sender, RoutedEventArgs e)
+        {
+            UpdateButton.IsEnabled = false;
+            DownloadsButton.Visibility = Visibility.Collapsed;
+            UpdateStatus.Text = Loc.Get("CheckingUpdates");
+            try
+            {
+                var latest = await UpdateService.CheckAsync();
+                ShowUpdateResult(latest);
+            }
+            catch (Exception error) { app.LogUpdateFailure(error); UpdateStatus.Text = Loc.Get("UpdateFailed"); }
+            finally { UpdateButton.IsEnabled = true; }
+        }
+        // VER: separate result presentation from transport.
+        private void ShowUpdateResult(Version latest)
+        {
+            if (latest <= UpdateService.Current) { UpdateStatus.Text = Loc.Get("LatestVersion"); return; }
+            UpdateStatus.Text = string.Format(Loc.Get("UpdateAvailable"), latest.ToString(3));
+            DownloadsButton.Visibility = Visibility.Visible;
+        }
+        // WEB: fixed project downloads page, opened only by user click.
+        private void DownloadsClick(object sender, RoutedEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(UpdateService.DownloadsUrl); }
+            catch (Exception error) { app.Report("update-downloads", error); }
+        }
+        // BG: mouse picker edits the new-note default.
+        private void BackgroundClick(object sender, RoutedEventArgs e)
+        {
+            var color = ColorWindow.Ask(this, backgroundColor);
+            if (color == null) return;
+            backgroundColor = color; RefreshColors();
+        }
+        // FG: mouse picker edits the new-note default.
+        private void ForegroundClick(object sender, RoutedEventArgs e)
+        {
+            var color = ColorWindow.Ask(this, foregroundColor);
+            if (color == null) return;
+            foregroundColor = color; RefreshColors();
+        }
+        // RGB: selected swatches replace code input fields.
+        private void RefreshColors()
+        {
+            SetSwatch(BackgroundButton, backgroundColor);
+            SetSwatch(ForegroundButton, foregroundColor);
+        }
+        // UI: keep picker text readable on every selected color.
+        private static void SetSwatch(Button button, string hex)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            button.Background = new SolidColorBrush(color);
+            button.Foreground = new SolidColorBrush(color.R * 299 + color.G * 587 + color.B * 114 > 150000 ? Colors.Black : Colors.White);
         }
         // CFG: validate and persist defaults.
         private async void SaveClick(object sender, RoutedEventArgs e)
         {
-            double font;
-            if (!double.TryParse(FontInput.Text, out font)) { MessageBox.Show(this, Loc.Get("Invalid")); return; }
-            var settings = new Settings { startWithWindows = Startup.IsChecked == true, backgroundColor = BackgroundChoice.Text, foregroundColor = ForegroundInput.Text, fontSize = font, opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag, language = LanguageChoice.SelectedIndex == 1 ? "en" : "ko" };
+            var settings = new Settings { startWithWindows = Startup.IsChecked == true, backgroundColor = backgroundColor, foregroundColor = foregroundColor, fontSize = FontInput.Value, opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag, language = app.Notes.Settings.language };
             try
             {
                 Validation.Settings(settings); StartupService.Apply(settings.startWithWindows);
                 app.Notes.Settings = settings; app.RequestSave(); await app.FlushAsync();
-                if (Loc.Culture.TwoLetterISOLanguageName != settings.language) MessageBox.Show(this, Loc.Get("RestartLanguage"));
                 Close();
             }
             catch (Exception error) { app.Report("settings-save", error); }

@@ -1,4 +1,4 @@
-#ifndef Platform
+﻿#ifndef Platform
   #error Platform required
 #endif
 #ifndef Repository
@@ -10,11 +10,14 @@
 #ifndef Output
   #error Output required
 #endif
+#ifndef AppVersion
+  #error AppVersion required
+#endif
 
 [Setup]
 AppId={{A3142C21-8A03-41D8-9EB3-17933227A441}
 AppName=Sticky Note
-AppVersion=1.0.0
+AppVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\StickyNote
 DefaultGroupName=Sticky Note
 PrivilegesRequired=lowest
@@ -28,10 +31,32 @@ OutputBaseFilename=sticky_note_setup_{#Platform}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+ShowLanguageDialog=no
+UsePreviousLanguage=no
+LanguageDetectionMethod=uilanguage
+SetupIconFile={#Repository}\src\StickyNote\Assets\App.ico
 DisableProgramGroupPage=yes
 CloseApplications=no
 RestartApplications=no
 UninstallDisplayIcon={app}\StickyNote.exe
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "korean"; MessagesFile: "compiler:Default.isl,{#Repository}\scripts\Korean.isl"
+
+[CustomMessages]
+english.LaunchSticky=Run Sticky Note
+korean.LaunchSticky=Sticky Note 실행
+english.UninstallSticky=Uninstall Sticky Note
+korean.UninstallSticky=Sticky Note 제거
+english.RuntimeRestart=Restart Windows, then run this setup again.
+korean.RuntimeRestart=Windows를 다시 시작한 뒤 이 설치 파일을 다시 실행해 주세요.
+english.RuntimeFailed=.NET Framework installation failed (code %d). Windows 7 requires SP1 and servicing/SHA-2 updates.
+korean.RuntimeFailed=.NET Framework 설치에 실패했습니다 (오류 %d). Windows 7은 SP1 및 서비스/SHA-2 업데이트가 필요합니다.
+english.RuntimeMissing=.NET Framework 4.8 was not found. Restart Windows and retry setup.
+korean.RuntimeMissing=.NET Framework 4.8을 확인할 수 없습니다. Windows를 다시 시작한 뒤 설치를 다시 실행해 주세요.
+english.RuntimeLaunchFailed=Unable to start the bundled .NET Framework 4.8 installer.
+korean.RuntimeLaunchFailed=포함된 .NET Framework 4.8 설치 파일을 실행하지 못했습니다.
 
 [Files]
 Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -40,10 +65,10 @@ Source: "{#Runtime}"; DestName: "net48.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\Sticky Note"; Filename: "{app}\StickyNote.exe"
-Name: "{group}\Uninstall Sticky Note"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:UninstallSticky}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\StickyNote.exe"; Description: "Start Sticky Note"; Flags: nowait postinstall skipifsilent; Check: HasFramework
+Filename: "{app}\StickyNote.exe"; Description: "{cm:LaunchSticky}"; Flags: nowait postinstall skipifsilent; Check: HasFramework
 
 [Code]
 // NET: 4.8 or newer; 32-bit registry view works on x86/x64.
@@ -63,15 +88,15 @@ begin
   if (Code = 3010) or (Code = 1641) then
   begin
     NeedsRestart := True;
-    Result := 'Restart Windows, then run this setup again.';
+    Result := CustomMessage('RuntimeRestart');
     Exit;
   end;
   if Code <> 0 then
   begin
-    Result := Format('.NET Framework installation failed (%d). Windows 7 requires SP1 and current servicing/SHA-2 updates.', [Code]);
+    Result := Format(CustomMessage('RuntimeFailed'), [Code]);
     Exit;
   end;
-  if not HasFramework then Result := '.NET Framework 4.8 is unavailable. Restart Windows and retry setup.';
+  if not HasFramework then Result := CustomMessage('RuntimeMissing');
 end;
 
 // NET: embedded offline prerequisite; elevation only when needed.
@@ -82,9 +107,9 @@ begin
   Result := '';
   if HasFramework then Exit;
   ExtractTemporaryFile('net48.exe');
-  if not ShellExec('runas', ExpandConstant('{tmp}\net48.exe'), '/passive /norestart', '', SW_SHOW, ewWaitUntilTerminated, Code) then
+  if not ShellExec('runas', ExpandConstant('{tmp}\net48.exe'), '/q /norestart', '', SW_HIDE, ewWaitUntilTerminated, Code) then
   begin
-    Result := 'Unable to start the bundled .NET Framework 4.8 installer.';
+    Result := CustomMessage('RuntimeLaunchFailed');
     Exit;
   end;
   Result := RuntimeResult(Code, NeedsRestart);

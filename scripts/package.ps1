@@ -53,12 +53,17 @@ if (!$CompilerPath) {
     }
 }
 $CompilerPath = (Resolve-Path -LiteralPath $CompilerPath).Path
+$appVersion = [IO.File]::ReadAllText((Join-Path $repository 'VERSION')).Trim()
+if ($appVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION must be major.minor.patch.' }
 $checksums = @()
 foreach ($platform in @('x86', 'x64')) {
+    $binary = Join-Path $repository "src\StickyNote\bin\$platform\Release\StickyNote.exe"
+    $binaryVersion = [Version][Diagnostics.FileVersionInfo]::GetVersionInfo($binary).FileVersion
+    if ($binaryVersion.ToString(3) -ne $appVersion) { throw "Version mismatch: rebuild $platform for $appVersion." }
     $temporary = Join-Path $output ([Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporary | Out-Null
     try {
-        & $CompilerPath "/DPlatform=$platform" "/DRepository=$repository" "/DRuntime=$RuntimePath" "/DOutput=$temporary" (Join-Path $PSScriptRoot 'setup.iss')
+        & $CompilerPath "/DPlatform=$platform" "/DRepository=$repository" "/DRuntime=$RuntimePath" "/DOutput=$temporary" "/DAppVersion=$appVersion" (Join-Path $PSScriptRoot 'setup.iss')
         if ($LASTEXITCODE -ne 0) { throw "Installer compile failed: $platform" }
         $name = "sticky_note_setup_$platform.exe"
         $source = Join-Path $temporary $name

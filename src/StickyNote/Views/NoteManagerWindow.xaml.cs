@@ -16,7 +16,7 @@ namespace StickyNote.Views
             Title = Heading.Text = Loc.Get("Manager"); SearchBox.ToolTip = Loc.Get("Search");
             System.Windows.Automation.AutomationProperties.SetName(SearchBox, Loc.Get("Search"));
             NewButton.Content = Loc.Get("NewNote"); ShowButton.Content = Loc.Get("Show"); HideButton.Content = Loc.Get("Hide"); DeleteButton.Content = Loc.Get("Delete");
-            ShowAllButton.Content = Loc.Get("ShowAll"); HideAllButton.Content = Loc.Get("HideAll"); SettingsButton.Content = Loc.Get("Settings");
+            ShowAllButton.Content = Loc.Get("ShowAll"); HideAllButton.Content = Loc.Get("HideAll");
         }
         // UI: create note.
         private void NewClick(object s, RoutedEventArgs e)
@@ -47,11 +47,6 @@ namespace StickyNote.Views
         private void HideAllClick(object s, RoutedEventArgs e)
         {
             service.HideAll();
-        }
-        // UI: open settings.
-        private void SettingsClick(object s, RoutedEventArgs e)
-        {
-            ((App)Application.Current).ShowSettings();
         }
     }
 }

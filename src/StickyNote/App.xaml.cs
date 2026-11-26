@@ -18,8 +18,8 @@ namespace StickyNote
         private LogService log;
         private AutosaveService autosave;
         private TrayService tray;
-        private NoteManagerWindow manager;
         private SettingsWindow settings;
+        private NoteManagerWindow manager;
         private bool exiting, restoring, saveErrorShown;
         public NoteService Notes { get; private set; }
         public BackupService Backups { get; private set; }
@@ -65,11 +65,9 @@ namespace StickyNote
         private void InitializeNotes()
         {
             var loaded = storage.Load();
-            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo(loaded.settings.language);
             Notes = new NoteService(loaded.settings, RequestSave, log);
             autosave = new AutosaveService(storage, Notes.Snapshot, SaveFailed);
             Backups = new BackupService(storage);
-            Notes.OpenManager += OpenManager;
             Notes.Load(loaded.notes.notes);
         }
         // ERR: report first failure until next edit.
@@ -84,9 +82,9 @@ namespace StickyNote
         // INIT: optional tray and startup registration.
         private void InitializeShell()
         {
-            try { tray = new TrayService(Notes, ShowManager, ShowSettings, ExitFromTray); }
+            try { tray = new TrayService(Notes, ShowManager, ShowSettings, ExitApplication); }
             catch (Exception error) { log.Write("tray-init", error); }
-            if (!Notes.Settings.startWithWindows) return;
+            if (storage.RecoveryBlocked || !Notes.Settings.startWithWindows) return;
             try { StartupService.Apply(true); }
             catch (Exception error) { log.Write("startup-refresh", error); }
         }
@@ -94,7 +92,8 @@ namespace StickyNote
         private void ShowInitialWindows()
         {
             if (!storage.RecoveryBlocked && Notes.Notes.Count == 0) Notes.Create();
-            if (tray == null || !Notes.Notes.Any(n => n.isVisible) || storage.RecoveryBlocked) ShowManager();
+            if (tray == null || storage.RecoveryBlocked) { ShowSettings(); return; }
+            if (!Notes.Notes.Any(n => n.isVisible)) ShowManager();
         }
         // EVT: dispatcher activation and display/session changes.
         private void SubscribeEvents()
@@ -110,11 +109,6 @@ namespace StickyNote
             if (storage.RecoveryBlocked) { MessageBox.Show(Loc.Get("RecoveryBlocked"), Loc.Get("AppTitle")); ShowSettings(); return; }
             if (storage.Recovered) MessageBox.Show(Loc.Get("Recovered"), Loc.Get("AppTitle"));
         }
-        // UI: handle manager request.
-        private void OpenManager(object sender, EventArgs e)
-        {
-            ShowManager();
-        }
         // SAVE: request only while editable.
         public void RequestSave()
         {
@@ -127,32 +121,38 @@ namespace StickyNote
         {
             return autosave.FlushAsync();
         }
-        // UI: lazy manager activation.
+        // EXIT: retain an exit path if tray initialization failed.
+        private void SettingsClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (exiting || tray != null) return;
+            e.Cancel = true;
+            Dispatcher.BeginInvoke(new Action(ExitApplication));
+        }
+        // UI: hidden-note list with show/hide/delete controls.
         public void ShowManager()
         {
             if (exiting || restoring) return;
             if (manager == null) CreateManager();
             manager.Show(); manager.WindowState = WindowState.Normal; manager.Activate();
         }
-        // UI: lazy manager creation.
+        // UI: release the list window when closed.
         private void CreateManager()
         {
             manager = new NoteManagerWindow(Notes);
             manager.Closed += (s, e) => manager = null;
-            if (tray == null) manager.Closing += ManagerClosing;
         }
-        // EXIT: manager substitutes for unavailable tray.
-        private void ManagerClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        // UI: create settings once and wire fallback exit.
+        private void CreateSettings()
         {
-            if (exiting) return;
-            e.Cancel = true;
-            Dispatcher.BeginInvoke(new Action(ExitFromTray));
+            settings = new SettingsWindow(this);
+            settings.Closed += (s, e) => settings = null;
+            settings.Closing += SettingsClosing;
         }
         // UI: lazy settings activation.
         public void ShowSettings()
         {
             if (exiting || restoring) return;
-            if (settings == null) { settings = new SettingsWindow(this); settings.Closed += (s, e) => settings = null; }
+            if (settings == null) CreateSettings();
             settings.Show(); settings.Activate();
         }
         // REC: apply validated restore transaction.
@@ -182,6 +182,8 @@ namespace StickyNote
             log.Write(operation, error);
             MessageBox.Show(Loc.Get("OperationError"), Loc.Get("AppTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+        // VER: metadata-only diagnostics; status is shown inline in settings.
+        internal void LogUpdateFailure(Exception error) { log.Write("update-check", error); }
         // DPI: queue live window repositioning.
         private void DisplayChanged(object sender, EventArgs e) { Dispatcher.BeginInvoke(new Action(() => { if (!exiting) Notes.RepositionAll(); })); }
         // DPI: refresh after resume.
@@ -190,7 +192,7 @@ namespace StickyNote
             if (e.Mode == PowerModes.Resume) DisplayChanged(sender, e);
         }
         // EXIT: flush final snapshot before shutdown.
-        private async void ExitFromTray()
+        public async void ExitApplication()
         {
             if (exiting || restoring) return;
             exiting = true;
@@ -224,7 +226,7 @@ namespace StickyNote
         {
             SystemEvents.DisplaySettingsChanged -= DisplayChanged; SystemEvents.PowerModeChanged -= PowerChanged; SessionEnding -= Ending;
             if (autosave != null) autosave.Dispose();
-            if (Notes != null) { Notes.OpenManager -= OpenManager; Notes.Dispose(); }
+            if (Notes != null) Notes.Dispose();
             if (tray != null) tray.Dispose(); tray = null; if (instance != null) instance.Dispose(); instance = null;
             // Storage gate may still be held only on startup failure; leave disposal to process exit in that case.
         }

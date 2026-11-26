@@ -35,7 +35,7 @@ namespace StickyNote.Tests
             Run("interrupted restore journal replay", JournalReplay);
             Run("offscreen and negative monitor geometry", MonitorGeometry);
             Run("debounce coalesces edits and flush uses latest", Debounce);
-            Run("note create edit duplicate hide show delete and manager search", NoteOperations);
+            Run("note create edit duplicate hide show and delete", NoteOperations);
             Run("localized resources embedded", Localization);
             Run("native mode transitions preserve visibility opacity and parent", NativeTransitions);
             Run("single instance IPC activates first instance", InstanceActivation);
@@ -44,6 +44,11 @@ namespace StickyNote.Tests
             Run("single instance IPC accepts repeated child processes", InstanceProcesses);
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
+            Run("startup defaults preserve opt-out and system language", StartupDefaults);
+            Run("inline title and note sliders update model", NoteControls);
+            Run("RGB picker updates preview and selected color", ColorControls);
+            Run("version checks reject malformed responses", VersionChecks);
+            Run("settings expose color buttons sliders and version without language picker", SettingsControls);
             Console.WriteLine("Passed: " + passed + ", Failed: " + failures); return failures == 0 ? 0 : 1;
         }
         // QA: UTF-8 JSON round trip and UTC.
@@ -196,8 +201,10 @@ namespace StickyNote.Tests
             {
                 var n = service.Create(); n.content = "searchable"; var copy = service.Create(n);
                 Equal(false, n.id == copy.id); Equal(n.content, copy.content); service.Hide(n); Equal(false, n.isVisible); service.Show(n); Equal(true, n.isVisible);
-                var vm = new StickyNote.ViewModels.NoteManagerViewModel(service); vm.Search = "searchable"; Equal(2, vm.Notes.Cast<Note>().Count());
-                vm.Search = "absent"; Equal(0, vm.Notes.Cast<Note>().Count()); service.Delete(copy); Equal(1, service.Notes.Count); Equal(true, changes > 4);
+                var manager = new StickyNote.ViewModels.NoteManagerViewModel(service);
+                manager.Search = "searchable"; Equal(2, manager.Notes.Cast<Note>().Count());
+                manager.Search = "absent"; Equal(0, manager.Notes.Cast<Note>().Count());
+                service.Delete(copy); Equal(1, service.Notes.Count); Equal(true, changes > 4);
             }
         }
 
@@ -363,6 +370,132 @@ namespace StickyNote.Tests
                 Equal(14d, service.Settings.fontSize);
                 Equal(0, changes);
                 Throws(() => Task.Run(() => service.Snapshot()).GetAwaiter().GetResult());
+            }
+        }
+        // QA: new defaults must not overwrite a persisted opt-out.
+        private static void StartupDefaults()
+        {
+            Equal(true, new Settings().startWithWindows);
+            var optedOut = Json.Read<Settings>(Json.Write(new Settings { startWithWindows = false }));
+            Equal(false, optedOut.startWithWindows);
+            var previous = Loc.Culture;
+            try
+            {
+                Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("ko-KR");
+                Equal("새 메모", Loc.Get("NewNote"));
+                Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+                Equal("New note", Loc.Get("NewNote"));
+                Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+                Equal("New note", Loc.Get("NewNote"));
+            }
+            finally { Loc.Culture = previous; }
+        }
+        // QA: inline controls bind both ways and survive snapshot capture.
+        private static void NoteControls()
+        {
+            using (var service = new NoteService(new Settings { displayMode = "normal" }, () => { }, new LogService(Path.Combine(root, "controls"))))
+            {
+                var note = new Note { title = "Before", displayMode = "normal", isVisible = false };
+                service.Load(new[] { note });
+                TestNoteWindow(service, note);
+            }
+        }
+        // QA: interact with WPF controls, including removed status/menu labels.
+        private static void TestNoteWindow(NoteService service, Note note)
+        {
+            var window = new StickyNote.Views.NoteWindow(note, service, new LogService(Path.Combine(root, "control-window")));
+            try
+            {
+                var textStyle = new Style(typeof(System.Windows.Controls.TextBox));
+                textStyle.Setters.Add(new Setter(System.Windows.Controls.Control.VerticalContentAlignmentProperty, VerticalAlignment.Center));
+                window.Resources.Add(typeof(System.Windows.Controls.TextBox), textStyle);
+                window.Show(); Pump(30);
+                var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
+                var title = (System.Windows.Controls.TextBox)window.FindName("TitleBox");
+                Equal(VerticalAlignment.Top, editor.VerticalContentAlignment);
+                Equal(TextAlignment.Left, editor.TextAlignment);
+                editor.Text = "왼쪽 위에서 입력합니다.\n두 번째 줄입니다.";
+                title.Text = "After";
+                ((System.Windows.Controls.Slider)window.FindName("OpacityGauge")).Value = .55;
+                ((System.Windows.Controls.Slider)window.FindName("FontGauge")).Value = 24;
+                Pump(30);
+                Equal("After", note.title); Equal(.55, note.opacity); Equal(24d, note.fontSize);
+                Equal(null, window.FindName("ModeStatus"));
+                var headers = window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(item => item.Header).ToArray();
+                Equal(true, headers.Contains(Loc.Get("Settings")));
+                Equal(true, headers.Contains(Loc.Get("Manager")));
+                Equal(false, headers.Contains("Rename"));
+                Equal("After", service.Snapshot().notes.notes.Single().title);
+                SavePreview(window, "note-preview.png");
+            }
+            finally { window.Destroy(); }
+        }
+        // QA: integer channel sliders produce the matching HEX selection.
+        private static void ColorControls()
+        {
+            var dialog = new StickyNote.Views.ColorWindow("#123456");
+            try
+            {
+                Equal("#123456", dialog.SelectedColor);
+                var sliders = ((System.Windows.Controls.StackPanel)dialog.Content).Children.OfType<System.Windows.Controls.Slider>().ToArray();
+                Equal(3, sliders.Length);
+                sliders[0].Value = 255; sliders[1].Value = 0; sliders[2].Value = 128;
+                Equal("#FF0080", dialog.SelectedColor);
+                dialog.Show(); Pump(30);
+                SavePreview(dialog, "color-preview.png");
+            }
+            finally { dialog.Close(); }
+        }
+        // QA: compare version numbers; never accept arbitrary response content.
+        private static void VersionChecks()
+        {
+            Equal(new Version(1, 2, 3, 0), UpdateService.ParseVersion("1.2.3"));
+            Equal(File.ReadAllText(Path.Combine(Environment.CurrentDirectory, "VERSION")).Trim(), UpdateService.Current.ToString(3));
+            Throws(() => UpdateService.ParseVersion("<html>error</html>"));
+            Throws(() => UpdateService.ParseVersion("1.2"));
+            Throws(() => UpdateService.ParseVersion("1.2.3.4"));
+            Throws(() => UpdateService.ParseVersion(null));
+        }
+        // QA: render isolated test windows without capturing the user's desktop.
+        private static void SavePreview(Window window, string name)
+        {
+            var content = (FrameworkElement)window.Content;
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)content.ActualWidth, (int)content.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            var drawing = new System.Windows.Media.DrawingVisual();
+            using (var context = drawing.RenderOpen())
+            {
+                var bounds = new Rect(0, 0, content.ActualWidth, content.ActualHeight);
+                context.DrawRectangle(window.Background ?? System.Windows.Media.Brushes.White, null, bounds);
+                context.DrawRectangle(new System.Windows.Media.VisualBrush(content), null, bounds);
+            }
+            bitmap.Render(drawing);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            var path = Path.Combine(root, name);
+            using (var stream = new FileStream(path + ".tmp", FileMode.CreateNew)) { encoder.Save(stream); stream.Flush(true); }
+            File.Move(path + ".tmp", path);
+        }
+        // QA: load real app styles without starting storage, tray or startup registration.
+        private static void SettingsControls()
+        {
+            var app = new App(); app.InitializeComponent();
+            using (var service = new NoteService(new Settings(), () => { }, new LogService(Path.Combine(root, "settings-ui"))))
+            {
+                typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[] { service });
+                var window = new StickyNote.Views.SettingsWindow(app);
+                try
+                {
+                    window.Show(); Pump(30);
+                    Equal(true, ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked);
+                    Equal(null, window.FindName("LanguageChoice"));
+                    Equal(null, window.FindName("BackgroundChoice"));
+                    Equal(true, window.FindName("BackgroundButton") is System.Windows.Controls.Button);
+                    Equal(true, window.FindName("ForegroundButton") is System.Windows.Controls.Button);
+                    Equal(true, window.FindName("FontInput") is System.Windows.Controls.Slider);
+                    Equal(UpdateService.Current.ToString(3), ((System.Windows.Controls.TextBlock)window.FindName("VersionValue")).Text);
+                    SavePreview(window, "settings-preview.png");
+                }
+                finally { window.Close(); }
             }
         }
         // QA: isolated storage per case.

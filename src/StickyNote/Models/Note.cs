@@ -82,7 +82,8 @@ namespace StickyNote.Models
     {
         private int _schemaVersion = 1;
         public int schemaVersion { get { return _schemaVersion; } set { _schemaVersion = value; } }
-        public bool startWithWindows { get; set; }
+        private bool _startWithWindows = true;
+        public bool startWithWindows { get { return _startWithWindows; } set { _startWithWindows = value; } }
         private string _backgroundColor = "#FFF2AD";
         public string backgroundColor { get { return _backgroundColor; } set { _backgroundColor = value; } }
         private string _foregroundColor = "#333333";

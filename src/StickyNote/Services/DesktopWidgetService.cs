@@ -27,7 +27,6 @@ namespace StickyNote.Services
         public string RequestedMode { get { return _requestedMode; } private set { _requestedMode = value; } }
         private string _actualMode = "normal";
         public string ActualMode { get { return _actualMode; } private set { _actualMode = value; } }
-        public event EventHandler Changed;
         // INIT: wire owned state and events.
         public DesktopWidgetService(Window window, LogService log)
         {
@@ -85,7 +84,6 @@ namespace StickyNote.Services
                 log.Write("desktop-fallback", e); ActualMode = "normal";
                 try { Restore(); } catch (Exception restoreError) { log.Write("desktop-restore", restoreError); }
             }
-            if (Changed != null) Changed(this, EventArgs.Empty);
         }
         // MODE: apply request; caller owns fallback.
         private void ApplyRequestedMode()

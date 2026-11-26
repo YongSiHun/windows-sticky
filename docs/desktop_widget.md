@@ -10,7 +10,7 @@ Normal은 일반 WPF 창, Always On Top은 WPF `Topmost`입니다. Desktop은 �
 
 ## 이벤트와 실패 정책
 
-- `RequestedMode`와 `ActualMode`는 분리합니다. 저장 모델은 요청 모드만 담고 하단 상태줄은 실제 fallback을 알립니다.
+- `RequestedMode`와 `ActualMode`는 분리합니다. 저장 모델은 요청 모드만 담으며 실패 시 로그를 남기고 Normal로 표시합니다. 하단의 모드 상태 글씨는 제거했고 메뉴 선택은 요청 모드를 유지합니다.
 - Desktop 창 활성화 시 Z-order를 다시 낮추며 WM_WINDOWPOSCHANGING에서 자동 전면 이동을 억제합니다. 키보드 포커스는 별도로 차단하지 않습니다.
 - WinEvent의 `EVENT_SYSTEM_FOREGROUND`를 out-of-context로 구독합니다. 바탕화면 호스트가 활성화되면 메모를 비활성 표시하고 Z-order를 재적용합니다. 상주 폴링은 없습니다.
 - `TaskbarCreated` 방송으로 Explorer 재시작 후 복구를 예약합니다. 2초 간격 최대 3회만 시도합니다. 이후에는 Normal로 계속 사용하고 수동 모드 재선택으로 다시 시도할 수 있습니다.

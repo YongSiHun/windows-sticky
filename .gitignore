@@ -7,3 +7,4 @@ artifacts/
 *.suo
 TestResults/
 .buildprofile/
+src/StickyNote/Assets/*.bak
