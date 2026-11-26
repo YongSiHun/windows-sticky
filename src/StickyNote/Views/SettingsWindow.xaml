@@ -1,4 +1,4 @@
-<Window x:Class="StickyNote.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Icon="/StickyNote;component/Assets/App.ico" Width="460" Height="560" MinWidth="420" MinHeight="440" WindowStartupLocation="CenterScreen" Background="#F7F7F4">
+<Window x:Class="StickyNote.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Icon="/StickyNote;component/Assets/App.ico" Width="460" Height="560" MinWidth="420" MinHeight="440" ShowInTaskbar="False" WindowStartupLocation="CenterScreen" Background="#F7F7F4">
  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
   <CheckBox x:Name="Startup" Margin="0,0,0,14"/>
   <TextBlock x:Name="StartupStatus" TextWrapping="Wrap" Margin="0,0,0,10"/>

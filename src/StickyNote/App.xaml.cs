@@ -65,13 +65,12 @@ namespace StickyNote
         private void InitializeNotes()
         {
             var loaded = storage.Load();
-            bool modeUpdated = !storage.RecoveryBlocked && ApplyNormalModeDefault(loaded);
             ReadInstallationStartup(loaded.settings);
             Notes = new NoteService(loaded.settings, RequestSave, log);
             autosave = new AutosaveService(storage, Notes.Snapshot, SaveFailed);
             Backups = new BackupService(storage);
             Notes.Load(loaded.notes.notes);
-            if (modeUpdated || installationStartupChoice.HasValue) RequestSave();
+            if (installationStartupChoice.HasValue) RequestSave();
         }
         internal static void ApplyInstallationStartup(Settings settings, bool? choice)
         {
@@ -83,15 +82,6 @@ namespace StickyNote
             try { installationStartupChoice = StartupService.InstallationChoice(); }
             catch (Exception error) { log.Write("startup-install-choice", error); }
             ApplyInstallationStartup(settings, installationStartupChoice);
-        }
-        // MODE: apply the requested Normal default once, including existing notes.
-        internal static bool ApplyNormalModeDefault(BackupDocument data)
-        {
-            if (data.settings.normalModeDefaultApplied) return false;
-            data.settings.displayMode = "normal";
-            foreach (var note in data.notes.notes) note.displayMode = "normal";
-            data.settings.normalModeDefaultApplied = true;
-            return true;
         }
         // ERR: report first failure until next edit.
         private void SaveFailed(Exception error)
@@ -195,7 +185,6 @@ namespace StickyNote
             try
             {
                 try { await autosave.FlushAsync(); } catch (Exception error) { log.Write("pre-restore-flush", error); }
-                ApplyNormalModeDefault(data);
                 await storage.RestoreAsync(data, Notes.Snapshot(), autosave.NextRevision());
                 autosave.ResetAfterRestore(); Notes.Settings = data.settings; Notes.Load(data.notes.notes);
                 try { StartupService.Apply(data.settings.startWithWindows); } catch (Exception error) { Report("startup-restore", error); }

@@ -22,8 +22,8 @@
 <data name="FontSize" xml:space="preserve"><value>Font size (8–72)</value></data>
 <data name="Opacity" xml:space="preserve"><value>Opacity</value></data>
 <data name="Mode" xml:space="preserve"><value>Display mode</value></data>
-<data name="desktop" xml:space="preserve"><value>Desktop</value></data>
-<data name="normal" xml:space="preserve"><value>Normal</value></data>
+<data name="desktop" xml:space="preserve"><value>Pin to desktop</value></data>
+<data name="normal" xml:space="preserve"><value>Window</value></data>
 <data name="topmost" xml:space="preserve"><value>Always on top</value></data>
 <data name="Fallback" xml:space="preserve"><value>Desktop unavailable</value></data>
 <data name="Color0" xml:space="preserve"><value>Yellow</value></data>

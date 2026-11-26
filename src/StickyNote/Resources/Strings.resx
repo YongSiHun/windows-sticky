@@ -22,8 +22,8 @@
 <data name="FontSize" xml:space="preserve"><value>글자 크기 (8–72)</value></data>
 <data name="Opacity" xml:space="preserve"><value>투명도</value></data>
 <data name="Mode" xml:space="preserve"><value>표시 모드</value></data>
-<data name="desktop" xml:space="preserve"><value>바탕화면</value></data>
-<data name="normal" xml:space="preserve"><value>일반</value></data>
+<data name="desktop" xml:space="preserve"><value>바탕화면 고정</value></data>
+<data name="normal" xml:space="preserve"><value>윈도우</value></data>
 <data name="topmost" xml:space="preserve"><value>항상 위</value></data>
 <data name="Fallback" xml:space="preserve"><value>바탕화면 연결 실패</value></data>
 <data name="Color0" xml:space="preserve"><value>노란색</value></data>

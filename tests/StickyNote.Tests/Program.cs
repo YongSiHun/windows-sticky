@@ -45,7 +45,7 @@ namespace StickyNote.Tests
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
             Run("installer startup choice overrides old settings once and later opt-out survives", StartupDefaults);
-            Run("Normal default upgrades existing notes once and preserves later choices", NormalModeUpgrade);
+            Run("Desktop defaults preserve saved display modes", DisplayModeDefaults);
             Run("inline title and note sliders update model", NoteControls);
             Run("RGB picker updates preview and selected color", ColorControls);
             Run("font selection persists and old documents retain defaults", FontControls);
@@ -388,6 +388,8 @@ namespace StickyNote.Tests
             {
                 Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("ko-KR");
                 Equal("새 메모", Loc.Get("NewNote"));
+                Equal("윈도우", Loc.Get("normal"));
+                Equal("바탕화면 고정", Loc.Get("desktop"));
                 Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
                 Equal("New note", Loc.Get("NewNote"));
                 Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
@@ -395,19 +397,21 @@ namespace StickyNote.Tests
             }
             finally { Loc.Culture = previous; }
         }
-        private static void NormalModeUpgrade()
+        private static void DisplayModeDefaults()
         {
+            Equal("desktop", new Settings().displayMode);
+            Equal("desktop", new Note().displayMode);
             var data = Data("mode");
-            data.settings.displayMode = "desktop";
+            data.settings.displayMode = "normal";
             data.notes.notes[0].displayMode = "topmost";
-            Equal(true, App.ApplyNormalModeDefault(data));
-            Equal("normal", data.settings.displayMode);
-            Equal("normal", data.notes.notes[0].displayMode);
             var saved = StorageService.ReadBackup(Json.Write(data));
-            Equal(true, saved.settings.normalModeDefaultApplied);
+            Equal("normal", saved.settings.displayMode);
+            Equal("topmost", saved.notes.notes[0].displayMode);
+            saved.settings.normalModeDefaultApplied = true;
             saved.settings.displayMode = "topmost";
             saved.notes.notes[0].displayMode = "desktop";
-            Equal(false, App.ApplyNormalModeDefault(saved));
+            saved = StorageService.ReadBackup(Json.Write(saved));
+            Equal(true, saved.settings.normalModeDefaultApplied);
             Equal("topmost", saved.settings.displayMode);
             Equal("desktop", saved.notes.notes[0].displayMode);
         }
@@ -436,7 +440,7 @@ namespace StickyNote.Tests
                 Equal(Visibility.Collapsed, title.Visibility);
                 var titleDisplay = (System.Windows.Controls.TextBlock)window.FindName("TitleDisplay");
                 Equal(Visibility.Visible, titleDisplay.Visibility);
-                Equal(System.Windows.Input.Cursors.SizeAll, ((System.Windows.Controls.Grid)window.FindName("TitleBar")).Cursor);
+                Equal(System.Windows.Input.Cursors.Arrow, ((System.Windows.Controls.Grid)window.FindName("TitleBar")).Cursor);
                 window.BeginTitleEdit(); Pump(10);
                 Equal(Visibility.Visible, title.Visibility); Equal(Visibility.Collapsed, titleDisplay.Visibility);
                 editor.Focus(); Pump(10);
@@ -461,7 +465,7 @@ namespace StickyNote.Tests
                 Equal(Loc.Get("Opacity"), ((System.Windows.Documents.Run)window.FindName("OpacityLabel")).Text);
                 Equal(Loc.Get("FontSizeShort"), ((System.Windows.Documents.Run)window.FindName("FontLabel")).Text);
                 Equal(Loc.Get("Delete"), ((System.Windows.Controls.Button)window.FindName("DeleteButton")).ToolTip);
-                Equal(true, window.ShowInTaskbar);
+                Equal(false, window.ShowInTaskbar);
                 note.fontFamily = "Arial"; Pump(20); Equal("Arial", editor.FontFamily.Source);
                 Equal(false, headers.Contains("Rename"));
                 Equal("After", service.Snapshot().notes.notes.Single().title);
@@ -517,7 +521,7 @@ namespace StickyNote.Tests
             var legacy = Json.Write(Data("old")).Replace("\"fontFamily\":\"Segoe UI\",", "");
             var old = StorageService.ReadBackup(legacy);
             Equal("Segoe UI", old.notes.notes[0].fontFamily); Equal("Segoe UI", old.settings.fontFamily);
-            Equal("normal", new Settings().displayMode); Equal("normal", new Note().displayMode);
+            Equal("desktop", new Settings().displayMode); Equal("desktop", new Note().displayMode);
             Throws(() => Validation.Settings(new Settings { fontFamily = null }));
             var dialog = new StickyNote.Views.FontWindow("Segoe UI");
             try
@@ -568,6 +572,7 @@ namespace StickyNote.Tests
                 try
                 {
                     window.Show(); Pump(30);
+                    Equal(false, window.ShowInTaskbar);
                     Equal(true, ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked);
                     Equal(null, window.FindName("LanguageChoice"));
                     Equal(null, window.FindName("BackgroundChoice"));
@@ -579,13 +584,13 @@ namespace StickyNote.Tests
                     opacitySlider.Value = .57;
                     var captured = window.CaptureSettings();
                     Equal(.57, captured.opacity); Equal(true, captured.normalModeDefaultApplied);
-                    Equal("normal", captured.displayMode);
+                    Equal("desktop", captured.displayMode);
                     ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked = false;
                     ((System.Windows.Controls.Slider)window.FindName("FontInput")).Value = 30;
                     ((System.Windows.Controls.ComboBox)window.FindName("ModeChoice")).SelectedIndex = 2;
                     ((System.Windows.Controls.Button)window.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                     captured = window.CaptureSettings();
-                    Equal(1d, captured.opacity); Equal(14d, captured.fontSize); Equal("normal", captured.displayMode);
+                    Equal(1d, captured.opacity); Equal(14d, captured.fontSize); Equal("desktop", captured.displayMode);
                     Equal(true, captured.startWithWindows); Equal(true, captured.normalModeDefaultApplied);
                     Equal(new Settings().backgroundColor, captured.backgroundColor); Equal(new Settings().foregroundColor, captured.foregroundColor);
                     Equal("Segoe UI", captured.fontFamily);

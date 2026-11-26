@@ -1,10 +1,10 @@
 <Window x:Class="StickyNote.Views.NoteWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
- WindowStyle="None" ResizeMode="CanResize" MinWidth="200" MinHeight="160" ShowInTaskbar="True" WindowStartupLocation="Manual"
+ WindowStyle="None" ResizeMode="CanResize" MinWidth="200" MinHeight="160" ShowInTaskbar="False" WindowStartupLocation="Manual"
  Icon="/StickyNote;component/Assets/App.ico" Background="{Binding backgroundColor}" Foreground="{Binding foregroundColor}" Opacity="{Binding opacity}" Title="{Binding title}">
  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"/></shell:WindowChrome.WindowChrome>
  <Border BorderBrush="#40000000" BorderThickness="1"><Grid>
   <Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="54"/></Grid.RowDefinitions>
-  <Grid x:Name="TitleBar" Background="#10000000" MouseLeftButtonDown="DragTitle" Cursor="SizeAll">
+  <Grid x:Name="TitleBar" Background="#10000000" MouseLeftButtonDown="DragTitle" Cursor="Arrow">
    <Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
    <Button x:Name="AddButton" Content="+" Click="Add" Cursor="Arrow" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
    <TextBlock x:Name="TitleDisplay" Grid.Column="1" Text="{Binding title}" Focusable="True" KeyDown="EditTitleKeyDown" Margin="6,0" VerticalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{Binding foregroundColor}"/>

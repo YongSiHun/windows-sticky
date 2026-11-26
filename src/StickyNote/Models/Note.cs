@@ -25,7 +25,7 @@ namespace StickyNote.Models
     {
         private string _id = Guid.NewGuid().ToString();
         public string id { get { return _id; } set { _id = value; } }
-        private string _title = "", _content = "", _background = "#FFF2AD", _foreground = "#333333", _mode = "normal";
+        private string _title = "", _content = "", _background = "#FFF2AD", _foreground = "#333333", _mode = "desktop";
         private double _font = 14, _opacity = 1, _x = 100, _y = 100, _width = 280, _height = 300;
         private string _fontFamily = "Segoe UI";
         public string fontFamily { get { return _fontFamily; } set { Set(ref _fontFamily, value); } }
@@ -83,7 +83,7 @@ namespace StickyNote.Models
 
     public sealed class Settings
     {
-        // One-time upgrade from releases whose default was Desktop.
+        // Retained for compatibility; no longer used to overwrite saved display modes.
         public bool normalModeDefaultApplied { get; set; }
         private int _schemaVersion = 1;
         public int schemaVersion { get { return _schemaVersion; } set { _schemaVersion = value; } }
@@ -99,7 +99,7 @@ namespace StickyNote.Models
         public double fontSize { get { return _fontSize; } set { _fontSize = value; } }
         private double _opacity = 1;
         public double opacity { get { return _opacity; } set { _opacity = value; } }
-        private string _displayMode = "normal";
+        private string _displayMode = "desktop";
         public string displayMode { get { return _displayMode; } set { _displayMode = value; } }
         private string _language = "ko";
         public string language { get { return _language; } set { _language = value; } }
