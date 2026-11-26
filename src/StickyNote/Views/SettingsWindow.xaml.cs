@@ -95,7 +95,7 @@ namespace StickyNote.Views
         // CFG: validate and persist defaults.
         private async void SaveClick(object sender, RoutedEventArgs e)
         {
-            var settings = new Settings { startWithWindows = Startup.IsChecked == true, backgroundColor = backgroundColor, foregroundColor = foregroundColor, fontSize = FontInput.Value, fontFamily = fontFamily, opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag, language = app.Notes.Settings.language };
+            var settings = CaptureSettings();
             try
             {
                 Validation.Settings(settings); StartupService.Apply(settings.startWithWindows);
@@ -103,6 +103,17 @@ namespace StickyNote.Views
                 Close();
             }
             catch (Exception error) { app.Report("settings-save", error); }
+        }
+        // CFG: preserve upgrade state when replacing the settings object.
+        internal Settings CaptureSettings()
+        {
+            return new Settings {
+                startWithWindows = Startup.IsChecked == true, backgroundColor = backgroundColor,
+                foregroundColor = foregroundColor, fontSize = FontInput.Value, fontFamily = fontFamily,
+                opacity = OpacityInput.Value, displayMode = (string)((ComboBoxItem)ModeChoice.SelectedItem).Tag,
+                language = app.Notes.Settings.language,
+                normalModeDefaultApplied = app.Notes.Settings.normalModeDefaultApplied
+            };
         }
         // BAK: capture on dispatcher, export off thread.
         private async void ExportClick(object sender, RoutedEventArgs e)

@@ -83,6 +83,8 @@ namespace StickyNote.Models
 
     public sealed class Settings
     {
+        // One-time upgrade from releases whose default was Desktop.
+        public bool normalModeDefaultApplied { get; set; }
         private int _schemaVersion = 1;
         public int schemaVersion { get { return _schemaVersion; } set { _schemaVersion = value; } }
         private bool _startWithWindows = true;

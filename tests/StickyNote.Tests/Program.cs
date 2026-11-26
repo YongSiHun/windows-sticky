@@ -45,6 +45,7 @@ namespace StickyNote.Tests
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
             Run("startup defaults preserve opt-out and system language", StartupDefaults);
+            Run("Normal default upgrades existing notes once and preserves later choices", NormalModeUpgrade);
             Run("inline title and note sliders update model", NoteControls);
             Run("RGB picker updates preview and selected color", ColorControls);
             Run("font selection persists and old documents retain defaults", FontControls);
@@ -388,6 +389,22 @@ namespace StickyNote.Tests
             }
             finally { Loc.Culture = previous; }
         }
+        private static void NormalModeUpgrade()
+        {
+            var data = Data("mode");
+            data.settings.displayMode = "desktop";
+            data.notes.notes[0].displayMode = "topmost";
+            Equal(true, App.ApplyNormalModeDefault(data));
+            Equal("normal", data.settings.displayMode);
+            Equal("normal", data.notes.notes[0].displayMode);
+            var saved = StorageService.ReadBackup(Json.Write(data));
+            Equal(true, saved.settings.normalModeDefaultApplied);
+            saved.settings.displayMode = "topmost";
+            saved.notes.notes[0].displayMode = "desktop";
+            Equal(false, App.ApplyNormalModeDefault(saved));
+            Equal("topmost", saved.settings.displayMode);
+            Equal("desktop", saved.notes.notes[0].displayMode);
+        }
         // QA: inline controls bind both ways and survive snapshot capture.
         private static void NoteControls()
         {
@@ -414,10 +431,12 @@ namespace StickyNote.Tests
                 Equal(TextAlignment.Left, editor.TextAlignment);
                 editor.Text = "왼쪽 위에서 입력합니다.\n두 번째 줄입니다.";
                 title.Text = "After";
-                ((System.Windows.Controls.Slider)window.FindName("OpacityGauge")).Value = .55;
+                var opacitySlider = (System.Windows.Controls.Slider)window.FindName("OpacityGauge");
+                Equal(.01, opacitySlider.TickFrequency); Equal(.01, opacitySlider.SmallChange);
+                opacitySlider.Value = .57;
                 ((System.Windows.Controls.Slider)window.FindName("FontGauge")).Value = 24;
                 Pump(30);
-                Equal("After", note.title); Equal(.55, note.opacity); Equal(24d, note.fontSize);
+                Equal("After", note.title); Equal(.57, note.opacity); Equal(24d, note.fontSize);
                 Equal(null, window.FindName("ModeStatus"));
                 var headers = window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(item => item.Header).ToArray();
                 Equal(true, headers.Contains(Loc.Get("Settings")));
@@ -514,7 +533,7 @@ namespace StickyNote.Tests
         private static void SettingsControls()
         {
             var app = new TestApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            using (var service = new NoteService(new Settings(), () => { }, new LogService(Path.Combine(root, "settings-ui"))))
+            using (var service = new NoteService(new Settings { normalModeDefaultApplied = true }, () => { }, new LogService(Path.Combine(root, "settings-ui"))))
             {
                 typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[] { service });
                 var window = new StickyNote.Views.SettingsWindow(app);
@@ -527,6 +546,12 @@ namespace StickyNote.Tests
                     Equal(true, window.FindName("BackgroundButton") is System.Windows.Controls.Button);
                     Equal(true, window.FindName("ForegroundButton") is System.Windows.Controls.Button);
                     Equal(true, window.FindName("FontInput") is System.Windows.Controls.Slider);
+                    var opacitySlider = (System.Windows.Controls.Slider)window.FindName("OpacityInput");
+                    Equal(.01, opacitySlider.TickFrequency); Equal(.01, opacitySlider.SmallChange);
+                    opacitySlider.Value = .57;
+                    var captured = window.CaptureSettings();
+                    Equal(.57, captured.opacity); Equal(true, captured.normalModeDefaultApplied);
+                    Equal("normal", captured.displayMode);
                     Equal(true, window.FindName("FontFamilyButton") is System.Windows.Controls.Button);
                     Equal(UpdateService.Current.ToString(3), ((System.Windows.Controls.TextBlock)window.FindName("VersionValue")).Text);
                     SavePreview(window, "settings-preview.png");

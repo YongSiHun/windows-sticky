@@ -8,7 +8,7 @@
   <TextBlock x:Name="FontFamilyLabel"/>
   <Button x:Name="FontFamilyButton" Click="FontFamilyClick" Height="36" Margin="0,4,0,10"/>
   <TextBlock x:Name="FontLabel"/><Slider x:Name="FontInput" Minimum="8" Maximum="72" TickFrequency="1" IsSnapToTickEnabled="True" AutoToolTipPlacement="TopLeft" AutoToolTipPrecision="0" Margin="0,4,0,10"/>
-  <TextBlock x:Name="OpacityLabel"/><Slider x:Name="OpacityInput" Minimum="0.3" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,4,0,10"/>
+  <TextBlock x:Name="OpacityLabel"/><Slider x:Name="OpacityInput" Minimum="0.3" Maximum="1" TickFrequency="0.01" SmallChange="0.01" LargeChange="0.1" IsSnapToTickEnabled="True" Margin="0,4,0,10"/>
   <TextBlock x:Name="ModeLabel"/><ComboBox x:Name="ModeChoice" Margin="0,4,0,10"/>
   <TextBlock x:Name="DefaultsHint" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10"/>
   <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" Margin="0,8,0,2"/>

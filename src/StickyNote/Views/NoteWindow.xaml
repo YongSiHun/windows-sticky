@@ -16,7 +16,7 @@
   <Grid Grid.Row="2" Margin="10,3,10,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
    <StackPanel Grid.Column="0" Margin="0,0,6,0">
     <TextBlock FontSize="11"><Run x:Name="OpacityLabel"/><Run Text=" "/><Run Text="{Binding opacity, StringFormat={}{0:P0}, Mode=OneWay}"/></TextBlock>
-    <Slider x:Name="OpacityGauge" Margin="0,4,0,0" Minimum="0.3" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding opacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding opacity, StringFormat={}{0:P0}}"/>
+    <Slider x:Name="OpacityGauge" Margin="0,4,0,0" Minimum="0.3" Maximum="1" TickFrequency="0.01" SmallChange="0.01" LargeChange="0.1" IsSnapToTickEnabled="True" Value="{Binding opacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding opacity, StringFormat={}{0:P0}}"/>
    </StackPanel>
    <StackPanel Grid.Column="1" Margin="6,0,0,0">
     <TextBlock FontSize="11"><Run x:Name="FontLabel"/><Run Text=" "/><Run Text="{Binding fontSize, StringFormat={}{0:0}, Mode=OneWay}"/></TextBlock>
