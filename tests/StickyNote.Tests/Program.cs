@@ -40,6 +40,7 @@ namespace StickyNote.Tests
             Run("native mode transitions preserve visibility opacity and parent", NativeTransitions);
             Run("single instance IPC activates first instance", InstanceActivation);
             Run("single instance IPC acknowledges activation before success", InstanceAcknowledgment);
+            Run("single instance IPC survives a timed-out client", InstanceTimeoutRecovery);
             Run("single instance IPC accepts repeated child processes", InstanceProcesses);
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
@@ -281,6 +282,27 @@ namespace StickyNote.Tests
                     RunSignalProcess(scope);
                     Equal(i, Interlocked.CompareExchange(ref activations, 0, 0));
                 }
+            }
+        }
+        // QA: a client that leaves before acknowledgment cannot disable IPC.
+        private static void InstanceTimeoutRecovery()
+        {
+            var scope = Guid.NewGuid().ToString("N");
+            using (var entered = new ManualResetEvent(false))
+            using (var release = new ManualResetEvent(false))
+            using (var first = new SingleInstanceService(scope))
+            using (var second = new SingleInstanceService(scope))
+            {
+                first.Listen(() => { entered.Set(); release.WaitOne(10000); }, new LogService(Path.Combine(root, "ipc-timeout")));
+                var signal = Task.Run(() => second.Signal());
+                try
+                {
+                    Equal(true, entered.WaitOne(3000));
+                    Equal(true, signal.Wait(5000));
+                    Equal(false, signal.Result);
+                }
+                finally { release.Set(); signal.Wait(5000); }
+                Equal(true, second.Signal());
             }
         }
         // QA: only the isolated test child can be terminated on timeout.

@@ -46,12 +46,15 @@ namespace StickyNote.Services
             {
                 client.Connect(800);
                 var reply = new byte[1];
-                var read = client.BeginRead(reply, 0, reply.Length, null, null);
-                using (var completed = read.AsyncWaitHandle)
+                var read = client.ReadAsync(reply, 0, reply.Length);
+                if (Task.WhenAny(read, Task.Delay(800)).GetAwaiter().GetResult() != read)
                 {
-                    if (!completed.WaitOne(800)) return false;
-                    return client.EndRead(read) == 1 && reply[0] == 1;
+                    // Disposal cancels the pending read; observe its eventual failure.
+                    read.ContinueWith(task => task.Exception.Handle(error => true),
+                        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+                    return false;
                 }
+                return read.GetAwaiter().GetResult() == 1 && reply[0] == 1;
             }
         }
         // IPC: start connection listener.
