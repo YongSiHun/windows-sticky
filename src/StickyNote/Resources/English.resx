@@ -72,4 +72,9 @@ Sample note 123</value></data>
 <data name="Palette" xml:space="preserve"><value>Preset colors</value></data>
 <data name="Hue" xml:space="preserve"><value>Hue</value></data>
 <data name="ColorDragHint" xml:space="preserve"><value>Click or drag on the color palette to select.</value></data>
+<data name="EditTitleHint" xml:space="preserve"><value>Drag to move; double-click to edit title</value></data>
+<data name="StartupMissing" xml:space="preserve"><value>Startup is not registered. Check the option above and save to register it.</value></data>
+<data name="ResetDefaults" xml:space="preserve"><value>Reset defaults</value></data>
+<data name="StartupRegistrationFailed" xml:space="preserve"><value>Unable to verify startup registration. Enable Start with Windows in settings and save, then check that Windows startup apps allow it.</value></data>
+<data name="StartupRegistered" xml:space="preserve"><value>Registered to start at sign-in. Keep it enabled in Windows startup apps.</value></data>
 </root>

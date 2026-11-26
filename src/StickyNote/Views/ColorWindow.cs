@@ -22,7 +22,7 @@ namespace StickyNote.Views
         internal string SelectedColor { get; private set; }
 
         // RGB: shared mouse/keyboard picker with live preview.
-        internal ColorWindow(string current)
+        internal ColorWindow(string current, string defaultColor)
         {
             Title = Loc.Get("ChooseColor");
             Width = 400; SizeToContent = SizeToContent.Height; MaxHeight = Math.Max(300, SystemParameters.WorkArea.Height - 60);
@@ -63,10 +63,12 @@ namespace StickyNote.Views
             green = AddChannel(panel, "Green", color.G);
             blue = AddChannel(panel, "Blue", color.B);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var reset = new Button { Name = "ResetColorButton", Content = Loc.Get("ResetDefaults"), MinWidth = 72, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 4, 0) };
+            reset.Click += (s, e) => SelectColor((Color)ColorConverter.ConvertFromString(defaultColor));
             var cancel = new Button { Content = Loc.Get("Cancel"), IsCancel = true, MinWidth = 72, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(4, 0, 4, 0) };
             var save = new Button { Content = Loc.Get("Save"), IsDefault = true, MinWidth = 72, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(4, 0, 0, 0) };
             save.Click += (s, e) => DialogResult = true;
-            buttons.Children.Add(cancel); buttons.Children.Add(save);
+            buttons.Children.Add(reset); buttons.Children.Add(cancel); buttons.Children.Add(save);
             panel.Children.Add(buttons); Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             RefreshPreview();
         }
@@ -178,9 +180,9 @@ namespace StickyNote.Views
         }
 
         // UI: cancel leaves the caller's color unchanged.
-        public static string Ask(Window owner, string current)
+        public static string Ask(Window owner, string current, string defaultColor)
         {
-            var dialog = new ColorWindow(current) { Owner = owner, Icon = owner.Icon };
+            var dialog = new ColorWindow(current, defaultColor) { Owner = owner, Icon = owner.Icon };
             return dialog.ShowDialog() == true ? dialog.SelectedColor : null;
         }
     }

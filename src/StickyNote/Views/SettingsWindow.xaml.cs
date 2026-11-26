@@ -20,6 +20,9 @@ namespace StickyNote.Views
         {
             this.app = app; InitializeComponent(); var settings = app.Notes.Settings;
             Title = Loc.Get("Settings"); Startup.Content = Loc.Get("Startup"); Startup.IsChecked = settings.startWithWindows;
+            ResetButton.Content = Loc.Get("ResetDefaults");
+            try { StartupStatus.Text = Loc.Get(StartupService.IsRegistered() ? "StartupRegistered" : "StartupMissing"); }
+            catch { StartupStatus.Text = Loc.Get("StartupRegistrationFailed"); }
             BackgroundLabel.Text = Loc.Get("Background"); ForegroundLabel.Text = Loc.Get("Foreground"); FontLabel.Text = Loc.Get("FontSize"); OpacityLabel.Text = Loc.Get("Opacity"); ModeLabel.Text = Loc.Get("Mode"); DefaultsHint.Text = Loc.Get("DefaultsHint");
             BackgroundButton.Content = ForegroundButton.Content = Loc.Get("ChooseColor");
             ExportButton.Content = Loc.Get("Export"); RestoreButton.Content = Loc.Get("Restore"); SaveButton.Content = Loc.Get("Save");
@@ -62,14 +65,14 @@ namespace StickyNote.Views
         // BG: mouse picker edits the new-note default.
         private void BackgroundClick(object sender, RoutedEventArgs e)
         {
-            var color = ColorWindow.Ask(this, backgroundColor);
+            var color = ColorWindow.Ask(this, backgroundColor, new Settings().backgroundColor);
             if (color == null) return;
             backgroundColor = color; RefreshColors();
         }
         // FG: mouse picker edits the new-note default.
         private void ForegroundClick(object sender, RoutedEventArgs e)
         {
-            var color = ColorWindow.Ask(this, foregroundColor);
+            var color = ColorWindow.Ask(this, foregroundColor, new Settings().foregroundColor);
             if (color == null) return;
             foregroundColor = color; RefreshColors();
         }
@@ -78,6 +81,17 @@ namespace StickyNote.Views
             var selected = FontWindow.Ask(this, fontFamily);
             if (selected == null) return;
             fontFamily = selected; FontFamilyButton.Content = selected;
+        }
+        // CFG: stage factory defaults; Save commits, closing discards the edits.
+        private void ResetClick(object sender, RoutedEventArgs e)
+        {
+            var defaults = new Settings();
+            Startup.IsChecked = defaults.startWithWindows;
+            backgroundColor = defaults.backgroundColor; foregroundColor = defaults.foregroundColor;
+            fontFamily = defaults.fontFamily; FontFamilyButton.Content = fontFamily;
+            FontInput.Value = defaults.fontSize; OpacityInput.Value = defaults.opacity;
+            ModeChoice.SelectedIndex = Array.IndexOf(new[] { "desktop", "normal", "topmost" }, defaults.displayMode);
+            RefreshColors();
         }
         // RGB: selected swatches replace code input fields.
         private void RefreshColors()

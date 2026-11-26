@@ -20,6 +20,7 @@ namespace StickyNote
         private TrayService tray;
         private SettingsWindow settings;
         private bool exiting, restoring, saveErrorShown;
+        private bool? installationStartupChoice;
         public NoteService Notes { get; private set; }
         public BackupService Backups { get; private set; }
         // INIT: compose services and show UI.
@@ -65,11 +66,23 @@ namespace StickyNote
         {
             var loaded = storage.Load();
             bool modeUpdated = !storage.RecoveryBlocked && ApplyNormalModeDefault(loaded);
+            ReadInstallationStartup(loaded.settings);
             Notes = new NoteService(loaded.settings, RequestSave, log);
             autosave = new AutosaveService(storage, Notes.Snapshot, SaveFailed);
             Backups = new BackupService(storage);
             Notes.Load(loaded.notes.notes);
-            if (modeUpdated) RequestSave();
+            if (modeUpdated || installationStartupChoice.HasValue) RequestSave();
+        }
+        internal static void ApplyInstallationStartup(Settings settings, bool? choice)
+        {
+            if (choice.HasValue) settings.startWithWindows = choice.Value;
+        }
+        private void ReadInstallationStartup(Settings settings)
+        {
+            if (storage.RecoveryBlocked) return;
+            try { installationStartupChoice = StartupService.InstallationChoice(); }
+            catch (Exception error) { log.Write("startup-install-choice", error); }
+            ApplyInstallationStartup(settings, installationStartupChoice);
         }
         // MODE: apply the requested Normal default once, including existing notes.
         internal static bool ApplyNormalModeDefault(BackupDocument data)
@@ -95,8 +108,15 @@ namespace StickyNote
             try { tray = new TrayService(Notes, NewNote, OpenNotes, ShowSettings, ExitApplication); }
             catch (Exception error) { log.Write("tray-init", error); }
             if (storage.RecoveryBlocked) return;
-            try { StartupService.Apply(Notes.Settings.startWithWindows); }
-            catch (Exception error) { log.Write("startup-refresh", error); }
+            try { StartupService.Apply(Notes.Settings.startWithWindows); CompleteInstallationStartup(); }
+            catch (Exception error) { log.Write("startup-refresh", error); MessageBox.Show(Loc.Get("StartupRegistrationFailed"), Loc.Get("AppTitle"), MessageBoxButton.OK, MessageBoxImage.Warning); }
+        }
+        // SETUP: retain the installer choice until settings are durably saved.
+        private async void CompleteInstallationStartup()
+        {
+            if (!installationStartupChoice.HasValue) return;
+            try { await FlushAsync(); StartupService.ClearInstallationChoice(); installationStartupChoice = null; }
+            catch (Exception error) { log.Write("startup-install-save", error); MessageBox.Show(Loc.Get("StartupRegistrationFailed"), Loc.Get("AppTitle")); }
         }
         // UI: retain a usable entry point without tray.
         private void ShowInitialWindows()

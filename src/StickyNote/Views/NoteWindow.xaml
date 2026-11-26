@@ -4,13 +4,13 @@
  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"/></shell:WindowChrome.WindowChrome>
  <Border BorderBrush="#40000000" BorderThickness="1"><Grid>
   <Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="*"/><RowDefinition Height="54"/></Grid.RowDefinitions>
-  <Grid Background="#10000000" MouseLeftButtonDown="DragTitle">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
-   <Button x:Name="AddButton" Content="+" Click="Add" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
-   <Border Grid.Column="1" Background="Transparent" Cursor="SizeAll"><TextBlock Text="⋮" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/></Border>
-   <TextBox x:Name="TitleBox" Grid.Column="2" Text="{Binding title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" Margin="3,0" Padding="3,0" VerticalContentAlignment="Center" Background="Transparent" BorderThickness="0" FontWeight="SemiBold" Foreground="{Binding foregroundColor}"/>
-   <Button x:Name="MenuButton" Grid.Column="3" Content="⋯" Click="OpenMenu" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
-   <Button x:Name="DeleteButton" Grid.Column="4" Content="×" Click="DeleteNote" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
+  <Grid x:Name="TitleBar" Background="#10000000" MouseLeftButtonDown="DragTitle" Cursor="SizeAll">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
+   <Button x:Name="AddButton" Content="+" Click="Add" Cursor="Arrow" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
+   <TextBlock x:Name="TitleDisplay" Grid.Column="1" Text="{Binding title}" Focusable="True" KeyDown="EditTitleKeyDown" Margin="6,0" VerticalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{Binding foregroundColor}"/>
+   <TextBox x:Name="TitleBox" Grid.Column="1" Visibility="Collapsed" Cursor="IBeam" Text="{Binding title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" Margin="3,0" Padding="3,0" VerticalContentAlignment="Center" Background="Transparent" BorderThickness="0" FontWeight="SemiBold" Foreground="{Binding foregroundColor}"/>
+   <Button x:Name="MenuButton" Grid.Column="2" Content="⋯" Click="OpenMenu" Cursor="Arrow" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
+   <Button x:Name="DeleteButton" Grid.Column="3" Content="×" Click="DeleteNote" Cursor="Arrow" Padding="0" Margin="0" Background="Transparent" BorderThickness="0"/>
   </Grid>
   <TextBox x:Name="Editor" Grid.Row="1" Text="{Binding content, UpdateSourceTrigger=PropertyChanged}" MaxLength="1000000" FontFamily="{Binding fontFamily}" FontSize="{Binding fontSize}" Foreground="{Binding foregroundColor}" Background="Transparent" BorderThickness="0" Padding="12,10" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" TextAlignment="Left" FlowDirection="LeftToRight" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsUndoEnabled="True"/>
   <Grid Grid.Row="2" Margin="10,3,10,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

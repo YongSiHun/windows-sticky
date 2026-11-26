@@ -21,6 +21,10 @@ namespace StickyNote.Views
         {
             this.note = note; this.service = service; this.log = log;
             InitializeComponent(); DataContext = note;
+            TitleBox.LostKeyboardFocus += (s, e) => FinishTitleEdit();
+            TitleBox.KeyDown += (s, e) => { if (e.Key == Key.Enter || e.Key == Key.Escape) { FinishTitleEdit(); Editor.Focus(); e.Handled = true; } };
+            TitleBox.ToolTip = Loc.Get("EditTitleHint");
+            TitleDisplay.ToolTip = Loc.Get("EditTitleHint");
             Left = note.x; Top = note.y; Width = note.width; Height = note.height;
             AddButton.ToolTip = Loc.Get("NewNote"); DeleteButton.ToolTip = Loc.Get("Delete"); MenuButton.ToolTip = Loc.Get("Options");
             OpacityLabel.Text = Loc.Get("Opacity"); FontLabel.Text = Loc.Get("FontSizeShort");
@@ -77,8 +81,31 @@ namespace StickyNote.Views
         // UI: drag title area.
         private void DragTitle(object sender, MouseButtonEventArgs e)
         {
-            if (TitleBox.IsMouseOver || AddButton.IsMouseOver || MenuButton.IsMouseOver || DeleteButton.IsMouseOver) return;
-            if (e.ClickCount == 1 && e.LeftButton == MouseButtonState.Pressed) { DragMove(); CaptureGeometry(); }
+            if (!CanDragTitle()) return;
+            if (e.ClickCount == 2)
+            {
+                BeginTitleEdit(); e.Handled = true; return;
+            }
+            if (e.ClickCount != 1 || e.LeftButton != MouseButtonState.Pressed) return;
+            Editor.Focus(); DragMove(); CaptureGeometry(); e.Handled = true;
+        }
+        private bool CanDragTitle()
+        {
+            return !(TitleBox.IsMouseOver || AddButton.IsMouseOver || MenuButton.IsMouseOver || DeleteButton.IsMouseOver);
+        }
+        internal void BeginTitleEdit()
+        {
+            TitleDisplay.Visibility = Visibility.Collapsed; TitleBox.Visibility = Visibility.Visible;
+            TitleBox.Focus(); TitleBox.SelectAll();
+        }
+        private void EditTitleKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter && e.Key != Key.F2) return;
+            BeginTitleEdit(); e.Handled = true;
+        }
+        private void FinishTitleEdit()
+        {
+            TitleBox.Visibility = Visibility.Collapsed; TitleDisplay.Visibility = Visibility.Visible;
         }
         // UI: add localized action.
         private void Add(object sender, RoutedEventArgs e)
@@ -110,8 +137,8 @@ namespace StickyNote.Views
             menu.Items.Add(Item("ShowAll", service.ShowAll));
             menu.Items.Add(Item("Settings", () => ((App)Application.Current).ShowSettings()));
             menu.Items.Add(new Separator());
-            menu.Items.Add(Item("Background", () => ChangeColor(note.backgroundColor, value => note.backgroundColor = value)));
-            menu.Items.Add(Item("Foreground", () => ChangeColor(note.foregroundColor, value => note.foregroundColor = value)));
+            menu.Items.Add(Item("Background", () => ChangeColor(note.backgroundColor, new Settings().backgroundColor, value => note.backgroundColor = value)));
+            menu.Items.Add(Item("Foreground", () => ChangeColor(note.foregroundColor, new Settings().foregroundColor, value => note.foregroundColor = value)));
             menu.Items.Add(Item("FontFamily", ChangeFont));
             var modes = ModeMenu();
             menu.Items.Add(modes); menu.Items.Add(new Separator());
@@ -127,9 +154,9 @@ namespace StickyNote.Views
             if (selected != null) note.fontFamily = selected;
         }
         // RGB: shared color editor.
-        private void ChangeColor(string current, Action<string> apply)
+        private void ChangeColor(string current, string defaultColor, Action<string> apply)
         {
-            var value = ColorWindow.Ask(this, current);
+            var value = ColorWindow.Ask(this, current, defaultColor);
             if (value == null) return;
             apply(value);
         }

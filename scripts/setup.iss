@@ -36,7 +36,8 @@ UsePreviousLanguage=no
 LanguageDetectionMethod=uilanguage
 SetupIconFile={#Repository}\src\StickyNote\Assets\App.ico
 DisableProgramGroupPage=yes
-CloseApplications=no
+CloseApplications=yes
+CloseApplicationsFilter=StickyNote.exe
 RestartApplications=no
 UninstallDisplayIcon={app}\StickyNote.exe
 
@@ -47,6 +48,8 @@ Name: "korean"; MessagesFile: "compiler:Default.isl,{#Repository}\scripts\Korean
 [CustomMessages]
 english.LaunchSticky=Run Windows Stricky
 korean.LaunchSticky=Windows Stricky 실행
+english.StartupSticky=Start with Windows
+korean.StartupSticky=Windows 시작 시 자동 실행
 english.UninstallSticky=Uninstall Windows Stricky
 korean.UninstallSticky=Windows Stricky 제거
 english.RuntimeRestart=Restart Windows, then run this setup again.
@@ -74,12 +77,71 @@ Type: files; Name: "{userprograms}\Sticky Note\Sticky Note 제거.lnk"
 Type: files; Name: "{userprograms}\Sticky Note\Uninstall Sticky Note.lnk"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "StickyNote"; ValueData: """{app}\StickyNote.exe"""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "StickyNote"; Flags: uninsdeletevalue
+Root: HKCU32; Subkey: "Software\StickyNote"; ValueType: none; ValueName: "InstallStartupEnabled"; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\StickyNote.exe"; Description: "{cm:LaunchSticky}"; Flags: nowait postinstall skipifsilent; Check: HasFramework
 
 [Code]
+var
+  StartupCheck: TNewCheckBox;
+  StartupPositioned: Boolean;
+
+procedure InitializeWizard;
+begin
+  StartupCheck := TNewCheckBox.Create(WizardForm);
+  StartupCheck.Parent := WizardForm.FinishedPage;
+  StartupCheck.Caption := CustomMessage('StartupSticky');
+  StartupCheck.Checked := True;
+  StartupCheck.Visible := False;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID <> wpFinished then Exit;
+  if not StartupPositioned then
+  begin
+    StartupCheck.SetBounds(WizardForm.RunList.Left, WizardForm.RunList.Top,
+      WizardForm.RunList.Width, ScaleY(24));
+    WizardForm.RunList.Top := WizardForm.RunList.Top + ScaleY(28);
+    WizardForm.RunList.Height := WizardForm.RunList.Height - ScaleY(28);
+    StartupPositioned := True;
+  end;
+  StartupCheck.Visible := True;
+end;
+
+// SETUP: pass the finished-page choice to the app without editing JSON in Pascal.
+procedure SaveStartupChoice;
+var
+  Enabled: Cardinal;
+begin
+  Enabled := 0;
+  if StartupCheck.Checked then Enabled := 1;
+  if not RegWriteDWordValue(HKCU32, 'Software\StickyNote', 'InstallStartupEnabled', Enabled) then
+    RaiseException('Unable to save startup preference.');
+  if StartupCheck.Checked then
+  begin
+    if not RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run',
+      'StickyNote', '"' + ExpandConstant('{app}\StickyNote.exe') + '"') then
+      RaiseException('Unable to register startup.');
+  end
+  else
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'StickyNote');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  // Silent installs and interrupted finished pages retain the checked default.
+  if CurStep = ssPostInstall then SaveStartupChoice;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = wpFinished then SaveStartupChoice;
+end;
+
 // NET: 4.8 or newer; 32-bit registry view works on x86/x64.
 function HasFramework: Boolean;
 var

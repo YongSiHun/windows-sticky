@@ -44,7 +44,7 @@ namespace StickyNote.Tests
             Run("single instance IPC accepts repeated child processes", InstanceProcesses);
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
-            Run("startup defaults preserve opt-out and system language", StartupDefaults);
+            Run("installer startup choice overrides old settings once and later opt-out survives", StartupDefaults);
             Run("Normal default upgrades existing notes once and preserves later choices", NormalModeUpgrade);
             Run("inline title and note sliders update model", NoteControls);
             Run("RGB picker updates preview and selected color", ColorControls);
@@ -377,6 +377,12 @@ namespace StickyNote.Tests
             Equal(true, new Settings().startWithWindows);
             var optedOut = Json.Read<Settings>(Json.Write(new Settings { startWithWindows = false }));
             Equal(false, optedOut.startWithWindows);
+            App.ApplyInstallationStartup(optedOut, true);
+            Equal(true, Json.Read<Settings>(Json.Write(optedOut)).startWithWindows);
+            App.ApplyInstallationStartup(optedOut, false);
+            Equal(false, optedOut.startWithWindows);
+            App.ApplyInstallationStartup(optedOut, null);
+            Equal(false, optedOut.startWithWindows);
             var previous = Loc.Culture;
             try
             {
@@ -427,6 +433,14 @@ namespace StickyNote.Tests
                 window.Show(); Pump(30);
                 var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
                 var title = (System.Windows.Controls.TextBox)window.FindName("TitleBox");
+                Equal(Visibility.Collapsed, title.Visibility);
+                var titleDisplay = (System.Windows.Controls.TextBlock)window.FindName("TitleDisplay");
+                Equal(Visibility.Visible, titleDisplay.Visibility);
+                Equal(System.Windows.Input.Cursors.SizeAll, ((System.Windows.Controls.Grid)window.FindName("TitleBar")).Cursor);
+                window.BeginTitleEdit(); Pump(10);
+                Equal(Visibility.Visible, title.Visibility); Equal(Visibility.Collapsed, titleDisplay.Visibility);
+                editor.Focus(); Pump(10);
+                Equal(Visibility.Collapsed, title.Visibility); Equal(Visibility.Visible, titleDisplay.Visibility);
                 Equal(VerticalAlignment.Top, editor.VerticalContentAlignment);
                 Equal(TextAlignment.Left, editor.TextAlignment);
                 editor.Text = "왼쪽 위에서 입력합니다.\n두 번째 줄입니다.";
@@ -437,6 +451,7 @@ namespace StickyNote.Tests
                 ((System.Windows.Controls.Slider)window.FindName("FontGauge")).Value = 24;
                 Pump(30);
                 Equal("After", note.title); Equal(.57, note.opacity); Equal(24d, note.fontSize);
+                Equal("After", titleDisplay.Text);
                 Equal(null, window.FindName("ModeStatus"));
                 var headers = window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(item => item.Header).ToArray();
                 Equal(true, headers.Contains(Loc.Get("Settings")));
@@ -457,7 +472,7 @@ namespace StickyNote.Tests
         // QA: integer channel sliders produce the matching HEX selection.
         private static void ColorControls()
         {
-            var dialog = new StickyNote.Views.ColorWindow("#123456");
+            var dialog = new StickyNote.Views.ColorWindow("#123456", new Settings().backgroundColor);
             try
             {
                 Equal("#123456", dialog.SelectedColor);
@@ -475,10 +490,23 @@ namespace StickyNote.Tests
                 var swatch = (System.Windows.Controls.Button)palette.Children[0];
                 swatch.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 Equal((string)swatch.Tag, dialog.SelectedColor);
+                var buttons = panel.Children.OfType<System.Windows.Controls.StackPanel>().Single();
+                var reset = buttons.Children.OfType<System.Windows.Controls.Button>().Single(button => button.Name == "ResetColorButton");
+                reset.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                Equal(new Settings().backgroundColor, dialog.SelectedColor);
                 dialog.Show(); Pump(30);
                 SavePreview(dialog, "color-preview.png");
             }
             finally { dialog.Close(); }
+            var foreground = new StickyNote.Views.ColorWindow("#FFFFFF", new Settings().foregroundColor);
+            try
+            {
+                var panel = (System.Windows.Controls.StackPanel)((System.Windows.Controls.ScrollViewer)foreground.Content).Content;
+                var buttons = panel.Children.OfType<System.Windows.Controls.StackPanel>().Single();
+                buttons.Children.OfType<System.Windows.Controls.Button>().Single(button => button.Name == "ResetColorButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                Equal(new Settings().foregroundColor, foreground.SelectedColor);
+            }
+            finally { foreground.Close(); }
         }
         // QA: fonts are editable, cloned, backed up and optional in existing schema 1 data.
         private static void FontControls()
@@ -533,7 +561,7 @@ namespace StickyNote.Tests
         private static void SettingsControls()
         {
             var app = new TestApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            using (var service = new NoteService(new Settings { normalModeDefaultApplied = true }, () => { }, new LogService(Path.Combine(root, "settings-ui"))))
+            using (var service = new NoteService(new Settings { normalModeDefaultApplied = true, opacity = .81, backgroundColor = "#112233", foregroundColor = "#FFFFFF", fontFamily = "Arial" }, () => { }, new LogService(Path.Combine(root, "settings-ui"))))
             {
                 typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[] { service });
                 var window = new StickyNote.Views.SettingsWindow(app);
@@ -552,9 +580,22 @@ namespace StickyNote.Tests
                     var captured = window.CaptureSettings();
                     Equal(.57, captured.opacity); Equal(true, captured.normalModeDefaultApplied);
                     Equal("normal", captured.displayMode);
+                    ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked = false;
+                    ((System.Windows.Controls.Slider)window.FindName("FontInput")).Value = 30;
+                    ((System.Windows.Controls.ComboBox)window.FindName("ModeChoice")).SelectedIndex = 2;
+                    ((System.Windows.Controls.Button)window.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    captured = window.CaptureSettings();
+                    Equal(1d, captured.opacity); Equal(14d, captured.fontSize); Equal("normal", captured.displayMode);
+                    Equal(true, captured.startWithWindows); Equal(true, captured.normalModeDefaultApplied);
+                    Equal(new Settings().backgroundColor, captured.backgroundColor); Equal(new Settings().foregroundColor, captured.foregroundColor);
+                    Equal("Segoe UI", captured.fontFamily);
+                    Equal(.81, service.Settings.opacity); Equal("#112233", service.Settings.backgroundColor);
                     Equal(true, window.FindName("FontFamilyButton") is System.Windows.Controls.Button);
                     Equal(UpdateService.Current.ToString(3), ((System.Windows.Controls.TextBlock)window.FindName("VersionValue")).Text);
+                    Pump(30);
                     SavePreview(window, "settings-preview.png");
+                    ((System.Windows.Controls.ScrollViewer)window.Content).ScrollToBottom(); Pump(30);
+                    SavePreview(window, "settings-bottom-preview.png");
                 }
                 finally { window.Close(); }
                 using (var storage = Store("launch-ui"))
