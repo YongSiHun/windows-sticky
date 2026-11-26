@@ -32,12 +32,18 @@ namespace StickyNote.Services
         // IPC: bounded activation retries.
         public bool Signal()
         {
-            for (int i = 0; i < 3; i++) try
+            for (int i = 0; i < 3; i++)
             {
-                if (ConnectAndWaitForActivation()) return true;
+                if (TryActivate()) return true;
             }
-            catch (TimeoutException) { } catch (System.IO.IOException) { }
             return false;
+        }
+        // IPC: treat transient transport failures as retryable.
+        private bool TryActivate()
+        {
+            try { return ConnectAndWaitForActivation(); }
+            catch (TimeoutException) { return false; }
+            catch (System.IO.IOException) { return false; }
         }
         // IPC: keep the connection alive until activation is acknowledged.
         private bool ConnectAndWaitForActivation()
