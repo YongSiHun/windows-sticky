@@ -23,76 +23,144 @@ namespace StickyNote
         private bool exiting, restoring, saveErrorShown;
         public NoteService Notes { get; private set; }
         public BackupService Backups { get; private set; }
+        // INIT: compose services and show UI.
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
             try
             {
-                var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StickyNote");
-#if DEBUG
-                // Isolated QA without touching real user data. Not compiled into Release.
-                if (e.Args.Length == 2 && e.Args[0] == "--diagnostic-data-directory") root = Path.GetFullPath(e.Args[1]);
-#endif
-                log = new LogService(root);
-                instance = new SingleInstanceService();
-                if (!instance.IsFirst)
-                {
-                    if (!instance.Signal()) MessageBox.Show(Loc.Get("InstanceUnavailable"), Loc.Get("AppTitle"));
-                    instance.Dispose(); instance = null; Shutdown(); return;
-                }
-                storage = new StorageService(root, log);
-                var loaded = storage.Load(); Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo(loaded.settings.language);
-                Notes = new NoteService(loaded.settings, RequestSave, log);
-                autosave = new AutosaveService(storage, Notes.Snapshot, error =>
-                {
-                    log.Write("autosave", error);
-                    if (!saveErrorShown) { saveErrorShown = true; if (tray != null) tray.Notify("SaveError"); else MessageBox.Show(Loc.Get("SaveError")); }
-                });
-                Backups = new BackupService(storage); Notes.OpenManager += OpenManager;
-                try { tray = new TrayService(Notes, ShowManager, ShowSettings, ExitFromTray); }
-                catch (Exception error) { log.Write("tray-init", error); }
-                Notes.Load(loaded.notes.notes);
-                if (!storage.RecoveryBlocked && loaded.notes.notes.Count == 0) Notes.Create();
-                if (tray == null || !Notes.Notes.Any(n => n.isVisible) || storage.RecoveryBlocked) ShowManager();
-                if (loaded.settings.startWithWindows) try { StartupService.Apply(true); } catch (Exception error) { log.Write("startup-refresh", error); }
-                SystemEvents.DisplaySettingsChanged += DisplayChanged; SystemEvents.PowerModeChanged += PowerChanged;
-                SessionEnding += Ending;
-                instance.Listen(() => Dispatcher.BeginInvoke(new Action(ShowManager)), log);
-                if (storage.RecoveryBlocked) { MessageBox.Show(Loc.Get("RecoveryBlocked"), Loc.Get("AppTitle")); ShowSettings(); }
-                else if (storage.Recovered) MessageBox.Show(Loc.Get("Recovered"), Loc.Get("AppTitle"));
+                InitializeStorage(e);
+                if (!StartInstance()) return;
+                InitializeNotes();
+                InitializeShell();
+                ShowInitialWindows();
+                SubscribeEvents();
+                ShowRecoveryStatus();
             }
             catch (Exception error)
             {
                 if (log != null) log.Write("startup", error); MessageBox.Show(Loc.Get("StartupError"), Loc.Get("AppTitle")); Cleanup(); Shutdown(1);
             }
         }
-        private void OpenManager(object sender, EventArgs e) { ShowManager(); }
-        public void RequestSave() { if (!restoring && !exiting) { if (autosave != null) autosave.Request(); saveErrorShown = false; } }
-        public Task FlushAsync() { return autosave.FlushAsync(); }
+        // INIT: storage location; QA override is Debug-only.
+        private void InitializeStorage(StartupEventArgs e)
+        {
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StickyNote");
+#if DEBUG
+            if (e.Args.Length == 2 && e.Args[0] == "--diagnostic-data-directory") root = Path.GetFullPath(e.Args[1]);
+#endif
+            log = new LogService(root);
+            storage = new StorageService(root, log);
+        }
+        // IPC: activate existing instance.
+        private bool StartInstance()
+        {
+            instance = new SingleInstanceService();
+            if (instance.IsFirst) return true;
+            if (!instance.Signal()) MessageBox.Show(Loc.Get("InstanceUnavailable"), Loc.Get("AppTitle"));
+            instance.Dispose(); instance = null; Shutdown();
+            return false;
+        }
+        // INIT: load detached data and wire autosave.
+        private void InitializeNotes()
+        {
+            var loaded = storage.Load();
+            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo(loaded.settings.language);
+            Notes = new NoteService(loaded.settings, RequestSave, log);
+            autosave = new AutosaveService(storage, Notes.Snapshot, SaveFailed);
+            Backups = new BackupService(storage);
+            Notes.OpenManager += OpenManager;
+            Notes.Load(loaded.notes.notes);
+        }
+        // ERR: report first failure until next edit.
+        private void SaveFailed(Exception error)
+        {
+            log.Write("autosave", error);
+            if (saveErrorShown) return;
+            saveErrorShown = true;
+            if (tray != null) { tray.Notify("SaveError"); return; }
+            MessageBox.Show(Loc.Get("SaveError"));
+        }
+        // INIT: optional tray and startup registration.
+        private void InitializeShell()
+        {
+            try { tray = new TrayService(Notes, ShowManager, ShowSettings, ExitFromTray); }
+            catch (Exception error) { log.Write("tray-init", error); }
+            if (!Notes.Settings.startWithWindows) return;
+            try { StartupService.Apply(true); }
+            catch (Exception error) { log.Write("startup-refresh", error); }
+        }
+        // UI: retain a usable entry point without tray.
+        private void ShowInitialWindows()
+        {
+            if (!storage.RecoveryBlocked && Notes.Notes.Count == 0) Notes.Create();
+            if (tray == null || !Notes.Notes.Any(n => n.isVisible) || storage.RecoveryBlocked) ShowManager();
+        }
+        // EVT: dispatcher activation and display/session changes.
+        private void SubscribeEvents()
+        {
+            SystemEvents.DisplaySettingsChanged += DisplayChanged;
+            SystemEvents.PowerModeChanged += PowerChanged;
+            SessionEnding += Ending;
+            instance.Listen(() => Dispatcher.BeginInvoke(new Action(ShowManager)), log);
+        }
+        // REC: explain protected storage.
+        private void ShowRecoveryStatus()
+        {
+            if (storage.RecoveryBlocked) { MessageBox.Show(Loc.Get("RecoveryBlocked"), Loc.Get("AppTitle")); ShowSettings(); return; }
+            if (storage.Recovered) MessageBox.Show(Loc.Get("Recovered"), Loc.Get("AppTitle"));
+        }
+        // UI: handle manager request.
+        private void OpenManager(object sender, EventArgs e)
+        {
+            ShowManager();
+        }
+        // SAVE: request only while editable.
+        public void RequestSave()
+        {
+            if (restoring || exiting) return;
+            if (autosave != null) autosave.Request();
+            saveErrorShown = false;
+        }
+        // SAVE: capture latest pending state.
+        public Task FlushAsync()
+        {
+            return autosave.FlushAsync();
+        }
+        // UI: lazy manager activation.
         public void ShowManager()
         {
             if (exiting || restoring) return;
-            if (manager == null)
-            {
-                manager = new NoteManagerWindow(Notes); manager.Closed += (s, e) => manager = null;
-                if (tray == null)
-                {
-                    manager.Closing += (s, e) => { if (!exiting) { e.Cancel = true; Dispatcher.BeginInvoke(new Action(ExitFromTray)); } };
-                }
-            }
+            if (manager == null) CreateManager();
             manager.Show(); manager.WindowState = WindowState.Normal; manager.Activate();
         }
+        // UI: lazy manager creation.
+        private void CreateManager()
+        {
+            manager = new NoteManagerWindow(Notes);
+            manager.Closed += (s, e) => manager = null;
+            if (tray == null) manager.Closing += ManagerClosing;
+        }
+        // EXIT: manager substitutes for unavailable tray.
+        private void ManagerClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (exiting) return;
+            e.Cancel = true;
+            Dispatcher.BeginInvoke(new Action(ExitFromTray));
+        }
+        // UI: lazy settings activation.
         public void ShowSettings()
         {
             if (exiting || restoring) return;
             if (settings == null) { settings = new SettingsWindow(this); settings.Closed += (s, e) => settings = null; }
             settings.Show(); settings.Activate();
         }
+        // REC: apply validated restore transaction.
         public async Task RestoreAsync(BackupDocument data)
         {
             if (restoring) return;
             restoring = true;
-            var windows = Windows.Cast<Window>().ToArray(); foreach (var w in windows) w.IsEnabled = false;
+            var windows = Windows.Cast<Window>().ToArray(); SetEnabled(windows, false);
             try
             {
                 try { await autosave.FlushAsync(); } catch (Exception error) { log.Write("pre-restore-flush", error); }
@@ -101,26 +169,49 @@ namespace StickyNote
                 try { StartupService.Apply(data.settings.startWithWindows); } catch (Exception error) { Report("startup-restore", error); }
                 MessageBox.Show(Loc.Get("RestoreSuccess"), Loc.Get("AppTitle"));
             }
-            finally { restoring = false; foreach (var w in windows) if (w.IsLoaded) w.IsEnabled = true; }
+            finally { restoring = false; SetEnabled(windows, true); }
         }
-        public void Report(string operation, Exception error) { log.Write(operation, error); MessageBox.Show(Loc.Get("OperationError"), Loc.Get("AppTitle"), MessageBoxButton.OK, MessageBoxImage.Warning); }
+        // UI: enable surviving windows after async work.
+        private static void SetEnabled(Window[] windows, bool enabled)
+        {
+            foreach (var window in windows) if (window.IsLoaded) window.IsEnabled = enabled;
+        }
+        // ERR: log metadata and show localized error.
+        public void Report(string operation, Exception error)
+        {
+            log.Write(operation, error);
+            MessageBox.Show(Loc.Get("OperationError"), Loc.Get("AppTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        // DPI: queue live window repositioning.
         private void DisplayChanged(object sender, EventArgs e) { Dispatcher.BeginInvoke(new Action(() => { if (!exiting) Notes.RepositionAll(); })); }
-        private void PowerChanged(object sender, PowerModeChangedEventArgs e) { if (e.Mode == PowerModes.Resume) DisplayChanged(sender, e); }
+        // DPI: refresh after resume.
+        private void PowerChanged(object sender, PowerModeChangedEventArgs e)
+        {
+            if (e.Mode == PowerModes.Resume) DisplayChanged(sender, e);
+        }
+        // EXIT: flush final snapshot before shutdown.
         private async void ExitFromTray()
         {
             if (exiting || restoring) return;
             exiting = true;
             // Freeze editors so the final detached snapshot cannot miss new input.
-            foreach (Window window in Windows) window.IsEnabled = false;
+            SetEnabled(Windows.Cast<Window>().ToArray(), false);
             try { await autosave.FlushAsync(); }
             catch (Exception error)
             {
                 log.Write("shutdown-save", error);
                 if (MessageBox.Show(Loc.Get("ExitSaveError"), Loc.Get("AppTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
-                { exiting = false; foreach (Window window in Windows) window.IsEnabled = true; return; }
+                { CancelExit(); return; }
             }
             Cleanup(); Shutdown();
         }
+        // EXIT: resume editors after failed final save.
+        private void CancelExit()
+        {
+            exiting = false;
+            foreach (Window window in Windows) window.IsEnabled = true;
+        }
+        // EXIT: cancel session end if save fails.
         private void Ending(object sender, SessionEndingCancelEventArgs e)
         {
             if (restoring) { e.Cancel = true; return; }
@@ -128,6 +219,7 @@ namespace StickyNote
             catch (Exception error) { log.Write("session-save", error); e.Cancel = true; return; }
             exiting = true; Cleanup();
         }
+        // FREE: release process-level subscriptions.
         private void Cleanup()
         {
             SystemEvents.DisplaySettingsChanged -= DisplayChanged; SystemEvents.PowerModeChanged -= PowerChanged; SessionEnding -= Ending;

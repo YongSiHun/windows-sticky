@@ -1,19 +1,23 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using StickyNote.Utilities;
 
 namespace StickyNote.Models
 {
     public class Observable : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
+        // SET: notify only on change.
         protected bool Set<T>(ref T field, T value, [CallerMemberName] string name = null)
         {
             if (Equals(field, value)) return false;
             field = value; Changed(name); return true;
         }
-        protected void Changed(string name) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name)); }
+        // EVT: publish property change.
+        protected void Changed(string name)
+        {
+            if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name));
+        }
     }
 
     // Lowercase properties deliberately match the portable JSON schema.
@@ -41,7 +45,29 @@ namespace StickyNote.Models
         public string createdAt { get { return _createdAt; } set { _createdAt = value; } }
         private string _updatedAt = DateTime.UtcNow.ToString("o");
         public string updatedAt { get { return _updatedAt; } set { _updatedAt = value; } }
-        public Note Clone() { return Json.Copy(this); }
+        // COPY: detached data; no event subscribers.
+        public Note Clone()
+        {
+            return new Note
+            {
+                id = id,
+                title = title,
+                content = content,
+                backgroundColor = backgroundColor,
+                foregroundColor = foregroundColor,
+                fontSize = fontSize,
+                opacity = opacity,
+                x = x,
+                y = y,
+                width = width,
+                height = height,
+                displayMode = displayMode,
+                isVisible = isVisible,
+                monitorDeviceName = monitorDeviceName,
+                createdAt = createdAt,
+                updatedAt = updatedAt
+            };
+        }
     }
 
     public sealed class NoteDocument

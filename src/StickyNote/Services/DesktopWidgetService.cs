@@ -28,6 +28,7 @@ namespace StickyNote.Services
         private string _actualMode = "normal";
         public string ActualMode { get { return _actualMode; } private set { _actualMode = value; } }
         public event EventHandler Changed;
+        // INIT: wire owned state and events.
         public DesktopWidgetService(Window window, LogService log)
         {
             this.window = window; this.log = log;
@@ -38,21 +39,25 @@ namespace StickyNote.Services
             foregroundHook = NativeMethods.SetWinEventHook(3, 3, IntPtr.Zero, foregroundCallback, 0, 0, 0);
             window.Activated += Activated;
         }
+        // SHELL: locate live desktop host.
         private bool FindShell()
         {
             shell = NativeMethods.GetShellWindow(); iconHost = IntPtr.Zero;
             uint shellProcess; NativeMethods.GetWindowThreadProcessId(shell, out shellProcess);
-            NativeMethods.EnumWindows((candidate, unused) =>
-            {
-                if (NativeMethods.FindWindowEx(candidate, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero)
-                {
-                    uint process; NativeMethods.GetWindowThreadProcessId(candidate, out process);
-                    if (process == shellProcess) { iconHost = candidate; return false; }
-                }
-                return true;
-            }, IntPtr.Zero);
+            NativeMethods.EnumWindows((candidate, unused) => FindIconHost(candidate, shellProcess), IntPtr.Zero);
             return NativeMethods.IsWindow(shell) && NativeMethods.IsWindow(iconHost);
         }
+        // HWND: accept only Explorer's icon host.
+        private bool FindIconHost(IntPtr candidate, uint shellProcess)
+        {
+            if (NativeMethods.FindWindowEx(candidate, IntPtr.Zero, "SHELLDLL_DefView", null) == IntPtr.Zero) return true;
+            uint process;
+            NativeMethods.GetWindowThreadProcessId(candidate, out process);
+            if (process != shellProcess) return true;
+            iconHost = candidate;
+            return false;
+        }
+        // MODE: restore usable Normal mode.
         private void Restore()
         {
             if (!NativeMethods.IsWindow(handle)) return;
@@ -61,23 +66,19 @@ namespace StickyNote.Services
             window.Topmost = false;
             if (!NativeMethods.SetWindowPos(handle, NativeMethods.NoTopmost, 0, 0, 0, 0, NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate | NativeMethods.SwpFrameChanged)) throw new Win32Exception();
         }
+        // MODE: apply requested display mode.
         public void Apply(string requested)
         {
             RequestedMode = requested; recovery.Stop(); retries = 0;
             ApplyCore();
         }
+        // MODE: preserve request through fallback.
         private void ApplyCore()
         {
             try
             {
                 ActualMode = "normal"; Restore();
-                if (RequestedMode == "topmost") { window.Topmost = true; ActualMode = "topmost"; }
-                else if (RequestedMode == "desktop")
-                {
-                    if (!FindShell()) { log.Write("desktop-shell-unavailable"); throw new InvalidOperationException("Shell structure unavailable."); }
-                    if (foregroundHook == IntPtr.Zero) throw new Win32Exception();
-                    ActualMode = "desktop"; Order();
-                }
+                ApplyRequestedMode();
             }
             catch (Exception e)
             {
@@ -86,6 +87,17 @@ namespace StickyNote.Services
             }
             if (Changed != null) Changed(this, EventArgs.Empty);
         }
+        // MODE: apply request; caller owns fallback.
+        private void ApplyRequestedMode()
+        {
+            if (RequestedMode == "topmost") { window.Topmost = true; ActualMode = "topmost"; return; }
+            if (RequestedMode != "desktop") return;
+            if (!FindShell()) throw new InvalidOperationException("Shell structure unavailable.");
+            if (foregroundHook == IntPtr.Zero) throw new Win32Exception();
+            ActualMode = "desktop";
+            Order();
+        }
+        // Z: maintain desktop stacking.
         private void Order()
         {
             if (ordering || ActualMode != "desktop") return;
@@ -94,33 +106,45 @@ namespace StickyNote.Services
             {
                 // Change only our HWND, never the Shell's Z-order or parent.
                 if (!NativeMethods.IsWindow(shell) || !NativeMethods.IsWindow(iconHost)) throw new InvalidOperationException();
-                const uint flags = NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate;
-                if (!NativeMethods.SetWindowPos(handle, NativeMethods.Bottom, 0, 0, 0, 0, flags)) throw new Win32Exception();
+                MoveAfter(NativeMethods.Bottom);
                 IntPtr previous = NativeMethods.GetWindow(iconHost, 3); // GW_HWNDPREV; zero means HWND_TOP.
-                if (!NativeMethods.SetWindowPos(handle, previous, 0, 0, 0, 0, flags)) throw new Win32Exception();
+                MoveAfter(previous);
             }
             finally { ordering = false; }
         }
+        // Z: change only our HWND, preserving bounds/focus.
+        private void MoveAfter(IntPtr after)
+        {
+            const uint flags = NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate;
+            if (!NativeMethods.SetWindowPos(handle, after, 0, 0, 0, 0, flags)) throw new Win32Exception();
+        }
+        // Z: restore desktop order after activation.
         private void Activated(object sender, EventArgs e)
         {
             if (ActualMode != "desktop") return;
             try { Order(); } catch (Exception error) { log.Write("desktop-order", error); ApplyCore(); }
         }
+        // EVT: queue only relevant desktop activation.
         private void ForegroundChanged(IntPtr hook, uint eventId, IntPtr foreground, int objectId, int childId, uint thread, uint time)
         {
             if (disposed) return;
-            window.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (disposed || ActualMode != "desktop" || (foreground != shell && foreground != iconHost)) return;
-                try
-                {
-                    // Best effort after Show Desktop; do not steal focus from desktop icons.
-                    window.WindowState = WindowState.Normal;
-                    NativeMethods.ShowWindow(handle, 4); Order();
-                }
-                catch (Exception error) { log.Write("desktop-foreground", error); ApplyCore(); }
-            }));
+            if (ActualMode != "desktop") return;
+            if (foreground != shell && foreground != iconHost) return;
+            window.Dispatcher.BeginInvoke(new Action(RestoreDesktopVisibility));
         }
+        // UI: best effort after Show Desktop without focus theft.
+        private void RestoreDesktopVisibility()
+        {
+            if (disposed || ActualMode != "desktop") return;
+            try
+            {
+                window.WindowState = WindowState.Normal;
+                NativeMethods.ShowWindow(handle, 4);
+                Order();
+            }
+            catch (Exception error) { log.Write("desktop-foreground", error); ApplyCore(); }
+        }
+        // MSG: handle Shell recovery and window ordering.
         private IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             if (message == taskbarCreated && RequestedMode == "desktop")
@@ -128,26 +152,34 @@ namespace StickyNote.Services
                 // A bounded retry burst on Explorer's broadcast, no periodic polling.
                 retries = 0; recovery.Stop(); recovery.Start();
             }
-            if (message == NativeMethods.WmWindowPosChanging && ActualMode == "desktop" && !ordering)
-            {
-                if (!NativeMethods.IsWindow(shell) || !NativeMethods.IsWindow(iconHost))
-                {
-                    window.Dispatcher.BeginInvoke(new Action(() => { if (!disposed) ApplyCore(); }));
-                }
-                else
-                {
-                    var pos = (NativeMethods.WindowPos)Marshal.PtrToStructure(lParam, typeof(NativeMethods.WindowPos));
-                    // Prevent activation from raising Desktop notes above applications; keep editable focus.
-                    pos.flags |= 0x4; Marshal.StructureToPtr(pos, lParam, false);
-                }
-            }
+            if (message == NativeMethods.WmWindowPosChanging) PreserveDesktopOrder(lParam);
             return IntPtr.Zero;
         }
+        // Z: block activation from raising Desktop notes over apps.
+        private void PreserveDesktopOrder(IntPtr lParam)
+        {
+            if (ActualMode != "desktop" || ordering) return;
+            if (!NativeMethods.IsWindow(shell) || !NativeMethods.IsWindow(iconHost))
+            {
+                window.Dispatcher.BeginInvoke(new Action(ApplyIfAlive));
+                return;
+            }
+            var pos = (NativeMethods.WindowPos)Marshal.PtrToStructure(lParam, typeof(NativeMethods.WindowPos));
+            pos.flags |= 0x4;
+            Marshal.StructureToPtr(pos, lParam, false);
+        }
+        // LIFE: queued callbacks may outlive HWND.
+        private void ApplyIfAlive()
+        {
+            if (!disposed) ApplyCore();
+        }
+        // REC: bounded Shell recovery burst.
         private void Recover(object sender, EventArgs e)
         {
             if (++retries >= 3) recovery.Stop();
             ApplyCore(); if (ActualMode == "desktop") recovery.Stop();
         }
+        // FREE: release owned resources.
         public void Dispose()
         {
             disposed = true; recovery.Stop(); recovery.Tick -= Recover;

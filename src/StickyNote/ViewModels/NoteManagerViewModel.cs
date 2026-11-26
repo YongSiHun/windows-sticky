@@ -11,6 +11,7 @@ namespace StickyNote.ViewModels
         private string search = "";
         public string Search { get { return search; } set { if (Set(ref search, value)) Notes.Refresh(); } }
         public Note Selected { get; set; }
+        // INIT: wire owned state and events.
         public NoteManagerViewModel(NoteService service)
         {
             Notes = new ListCollectionView(service.Notes);

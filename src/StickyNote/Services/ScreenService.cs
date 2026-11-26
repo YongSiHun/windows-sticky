@@ -9,6 +9,7 @@ namespace StickyNote.Services
 {
     public static class ScreenService
     {
+        // RECT: choose nearest visible work area.
         public static Rect Clamp(Rect note, Rect[] workAreas)
         {
             if (workAreas == null || workAreas.Length == 0) return note;
@@ -17,6 +18,7 @@ namespace StickyNote.Services
             double width = Math.Min(note.Width, target.Width), height = Math.Min(note.Height, target.Height);
             return new Rect(Math.Max(target.Left, Math.Min(note.Left, target.Right - width)), Math.Max(target.Top, Math.Min(note.Top, target.Bottom - height)), width, height);
         }
+        // DPI: clamp to current work area.
         public static void Reposition(Window window, Note note)
         {
             var source = PresentationSource.FromVisual(window);
@@ -31,6 +33,7 @@ namespace StickyNote.Services
             var center = new System.Drawing.Point((int)(rect.X / matrix.M11 + rect.Width / matrix.M11 / 2), (int)(rect.Y / matrix.M22 + rect.Height / matrix.M22 / 2));
             note.monitorDeviceName = Forms.Screen.FromPoint(center).DeviceName;
         }
+        // MON: record current display.
         public static void UpdateMonitor(Window window, Note note)
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;

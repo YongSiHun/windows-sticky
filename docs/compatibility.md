@@ -10,23 +10,27 @@
 | Windows 10 x64 | .NET Framework 4.8 / x86, x64 | 미검증 |
 | Windows 11 x64 | .NET Framework 4.8 / x86, x64 | 일반 사용자 데스크톱 미검증 |
 
-개발 호스트 API 버전은 `10.0.26300.0`입니다. 설치된 Framework 어셈블리를 이용한 제한적 컴파일 및 프로세스 테스트를 수행했습니다. x86/x64 로컬 Release 빌드와 자동 회귀 테스트가 있으며, 최종 실행 기록은 [validation.md](validation.md)에 기록합니다. GitHub CI는 아직 실행하지 않았습니다. CI 성공은 Windows 7 실행 호환성 검증이 아닙니다.
+개발 호스트 API 버전은 `10.0.26300.0`입니다. 설치된 Framework 어셈블리를 이용한 제한적 컴파일 및 프로세스 테스트를 수행했습니다. 2026-11-26 x86/x64 로컬 Release 회귀 테스트는 각각 18개 통과했습니다. [실행 기록](validation.md)을 참고하세요. GitHub CI·설치 EXE 생성·Sonar 분석기는 이 환경에서 검증하지 못했습니다. CI 성공은 Windows 7 실행 호환성 검증이 아닙니다.
 
 ## Framework와 DPI
 
-Windows 7 SP1에서 .NET Framework 4.8을 먼저 설치해야 합니다. OS 업데이트/인증서/SHA-2 지원 등의 선행 요구조건은 Microsoft 설치 안내를 따르세요. 앱 실행 및 HKCU 자동 실행 등록에 관리자 권한은 필요하지 않습니다. Framework 자체 설치 권한은 별도입니다.
+Setup EXE는 .NET Framework 4.8 오프라인 설치본을 포함하도록 구성했습니다. 4.8 이상이 있으면 건너뛰고, 없으면 포함된 설치본을 실행합니다. 별도 런타임 다운로드는 필요하지 않으며 Framework 설치 시 UAC·재부팅이 필요할 수 있습니다. 앱은 사용자별 폴더에 설치하며 제거 후 메모 데이터는 보존합니다. Windows 7 SP1의 OS 업데이트/인증서/SHA-2 지원 등의 선행 요구조건은 [Microsoft 설치 안내](https://learn.microsoft.com/en-us/dotnet/framework/install/)를 따르세요. OS 업데이트는 설치 파일에 포함하지 않습니다.
+
+설치 파일은 Inno Setup 6.2.2로 빌드합니다. 빌드 머신만 공식 런타임·컴파일러 다운로드를 위해 인터넷이 필요합니다. `scripts/package.ps1 -RuntimePath <net48.exe> -CompilerPath <ISCC.exe>`로 미리 준비한 파일을 지정할 수 있습니다. 런타임과 다운로드한 컴파일러 설치본은 Authenticode 서명과 게시자를 검증합니다. 결과는 `artifacts/sticky_note_setup_x86.exe`, `sticky_note_setup_x64.exe`, `SHA256SUMS.txt`입니다. 파일 생성 및 설치 실기는 아직 미검증입니다.
 
 manifest는 Windows 7에서도 이해할 수 있는 **system DPI aware**를 사용합니다. 최신 DPI API를 동적으로라도 호출하지 않습니다. WPF DIP로 위치와 크기를 보관하고, `CompositionTarget.TransformFromDevice`를 통해 모니터 작업 영역 좌표를 같은 DIP 공간으로 변환합니다. 음수 좌표와 작업 영역 교집합을 지원하고 해상도/디스플레이 변경, 절전 복귀 및 창 재생성 시 화면 안으로 보정합니다.
 
 서로 다른 DPI 모니터에서도 system DPI 모델을 일관되게 유지합니다. Windows가 보조 모니터에서 비트맵 확대할 수 있어 텍스트가 다소 흐려질 수 있습니다. per-monitor v2의 선명도나 실행 중 시스템 DPI 변경 즉시 재레이아웃은 보장하지 않습니다. 시스템 DPI를 바꾼 후 앱 재시작(운영체제에 따라 로그아웃)이 필요할 수 있습니다. 서로 다른 DPI/모니터 탈착 실기는 아직 검증하지 않았습니다.
 
-P/Invoke 포인터/핸들은 IntPtr이며 Get/SetWindowLong은 포인터 크기에 따라 32/64 엔트리 포인트로 분기합니다. HWND가 무효화되어도 요청 모드를 보존하고 Normal fallback을 시도합니다. Windows 7에 없는 WebView/현대 .NET/최신 DPI API는 사용하지 않습니다.
+P/Invoke 포인터/핸들은 IntPtr이며 사용하지 않는 Get/SetWindowLong·SetParent 선언은 제거했습니다. HWND가 무효화되어도 요청 모드를 보존하고 Normal fallback을 시도합니다. Windows 7에 없는 WebView/현대 .NET/최신 DPI API는 사용하지 않습니다.
 
 ## OS별 체크리스트
 
 각 대상 OS/아키텍처별로 **별도의 사본**에 날짜, OS 빌드, Framework 버전, 배율, 모니터, 앱 버전 및 결과를 기록합니다. 아래는 모두 미실행 상태입니다. 실패는 재현 순서와 내용 없는 로그로 남깁니다. 저장 강제 종료 실험은 테스트 계정/백업 사본에서만 수행합니다.
 
-- [ ] 일반 권한으로 압축 해제 및 최초 실행, 트레이 확인
+- [ ] 4.8 이상 설치 환경: x86/x64 Setup 설치·최초 실행·트레이·제거·메모 보존
+- [ ] 4.8 없는 Win7 SP1/Win10: 네트워크 차단 후 포함본 설치·UAC 취소·실패 코드·재부팅 후 재실행
+- [ ] Win7: OS 필수 업데이트 누락 시 설치 실패 안내, 업데이트 적용 환경에서 재검증
 - [ ] 새 메모, 한글/영문/IME, 줄바꿈/자동 줄바꿈, 복사/붙여넣기/실행 취소
 - [ ] 제목 변경, 제목 드래그 이동, 모든 가장자리 크기 변경, 최소 크기
 - [ ] 복제 시 새 ID/동일 내용, 삭제 확인의 기본값 아니오, 취소 및 실제 삭제

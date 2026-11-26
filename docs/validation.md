@@ -1,33 +1,38 @@
-# 실행한 검증 기록
+# 실행 검증
 
-2026-11-24에 로컬 개발 호스트에서 확인한 결과입니다. OS API 버전은 `10.0.26300.0`, 호스트 프로세스는 x64입니다. 외부 테스트 프레임워크를 설치하지 않았습니다.
+2026-11-26 · 로컬 호스트 API `10.0.26300.0` · x64 프로세스.
 
 | 항목 | 결과 |
 |---|---|
-| x86 Release 솔루션 빌드 | 성공 |
-| x64 Release 솔루션 빌드 | 성공 |
-| x86 회귀 테스트 | 16 통과, 0 실패 |
-| x64 회귀 테스트 | 16 통과, 0 실패 |
-| UTF-8/UTC/UUID JSON 왕복 | 통과 |
-| v1 스키마, 누락 필드/미래 버전 거부 | 통과 |
-| 잘못된 설정, 중복 UUID, 비정상 크기 거부 | 통과 |
-| 원자적 교체, 이전 정상본, 임시 파일 정리 | 통과 |
-| 파일 잠금 저장 실패 후 원본 보존 | 통과 |
-| 손상 복구와 손상 원본/정상 .bak 보존 | 통과 |
-| 복구 불가 및 미래 버전의 덮어쓰기 차단 | 통과 |
-| 40개 순서가 뒤섞인 동시 저장 요청의 최신 revision 유지 | 통과 |
-| 백업 내보내기/가져오기/복원/자동 백업 10개 제한 | 통과 |
-| 중단된 복원 journal 재적용 | 통과 |
-| 음수 좌표/화면 밖/큰 창 작업 영역 보정 | 통과 |
-| debounce 20개 변경 → 한 스냅샷, 최종 flush | 통과 |
-| 메모 생성/수정/복제/숨기기/표시/삭제/관리 검색 | 통과 |
-| 한국어/영어 임베디드 리소스 조회 | 통과 |
-| WPF HWND 모드 전환의 Topmost/표시/부모/투명도 보존 | 통과 |
-| 같은 사용자·세션의 Mutex 및 Pipe 관리 활성화 신호 | 통과 |
-| 제한된 Shell에서 Desktop → Normal fallback 및 요청 모드 보존 | 관찰됨 |
+| VS MSBuild `/restore` x86/x64 | 실패: 사용자 NuGet 설정 폴더 접근 거부 |
+| Framework MSBuild x86/x64 Release | 성공: 설치된 Framework 어셈블리 참조 |
+| x86 회귀 테스트 | 18 통과 / 0 실패 |
+| x64 회귀 테스트 | 18 통과 / 0 실패 |
+| x64 Debug 빌드·격리 앱 시작 | 성공: 프로세스 응답 및 HWND 확인 |
+| 사용자 화면 육안·입력 검증 | 미완료: computer-use 앱/창 목록에 격리 앱이 없음 |
+| Sonar S3776 ≤ 5 실측 | 미완료: 분석기 복원 불가 |
+| PowerShell 빌드·패키징 스크립트 구문 | 통과 |
+| Setup EXE 생성 | 실패: 포함할 .NET 오프라인 설치본 다운로드 연결 차단 |
+| GitHub Actions | 원격 미실행 |
+| Win7/10/11 OS별 설치·화면·Shell 실기 | 미검증 |
 
-빌드 도구의 제한: 사용자 NuGet.Config 경로 접근이 거부되고 nuget.org에 연결할 수 없었습니다. VS MSBuild에는 Roslyn targets가 없었고 Windows SDK의 AL.exe도 없었습니다. 로컬 검증은 Framework MSBuild와 `FrameworkPathOverride`로 설치된 Framework 어셈블리를 참조했습니다. 이것은 공식 .NET Framework 4.8 참조 어셈블리를 사용한 CI 검증을 대체하지 않습니다. 소스는 C# 5이며 최신 .NET API를 사용하지 않습니다. CI에는 공식 참조 어셈블리 복원 경로가 구성되어 있습니다.
+정식 빌드 명령은 `scripts/build.ps1`입니다. `/restore`로 공식 4.8 참조 어셈블리와 빌드 전용 Sonar 분석기를 준비하고 양쪽 플랫폼의 회귀 테스트를 실행합니다. `SonarLint.xml`은 S3776 임계값 5, `.editorconfig`는 초과 시 오류를 지정합니다. 이 호스트에는 VS Roslyn 도구가 없고 NuGet·Microsoft 다운로드 서버 연결도 차단돼 있습니다. 분석기 통과나 정식 배포 빌드 성공을 주장하지 않습니다.
 
-프로그램 방식으로 생성한 창과 모델의 동작을 검사했으며, 실제 사용자 타이핑·IME·화면 배치의 육안 검증은 수행하지 못했습니다. 격리 실행 창이 computer-use 목록에 나타나지 않았습니다. 테스트용 앱 프로세스는 정리했습니다. 사용자의 실제 메모 폴더와 자동 실행 레지스트리는 변경하지 않았습니다.
+실제로 통과한 제한적 로컬 명령:
 
-Windows 7/10 실기, Windows 11 일반 사용자 데스크톱의 입력/트레이/Shell, Win+D, Win+M, Explorer 재시작, 혼합 DPI, 실제 모니터 탈착, 절전/재부팅/자동 실행, 저장 중 프로세스 강제 종료, 디스크 부족, 장시간 CPU/메모리 및 외부 사용자 Pipe 접근 차단 실험은 **미검증**입니다. GitHub Actions도 원격 실행하지 않았습니다. [OS별 체크리스트](compatibility.md)와 [Desktop 한계](desktop_widget.md)를 따르세요.
+```powershell
+foreach ($platform in @('x86', 'x64')) {
+    & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe" StickyNote.sln /m /p:Configuration=Release /p:Platform=$platform /p:FrameworkPathOverride="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
+    & ".\tests\StickyNote.Tests\bin\$platform\Release\StickyNote.Tests.exe"
+}
+```
+
+이 경로는 설치된 런타임 어셈블리를 참조하며 Sonar 분석기를 실행하지 않습니다. CI의 공식 참조 어셈블리 빌드와 대상 OS 실행을 대체하지 않습니다.
+
+회귀 범위: UTF-8/UTC JSON, 스키마 경계, 필드 검증, 원자적 저장·정상본, 잠금 실패, 손상 복구·덮어쓰기 차단, 동시 revision, 백업·복원 트랜잭션, journal 재생, 화면 좌표 보정, debounce, 메모 작업·검색, 언어 리소스, HWND 모드 전환, 단일 인스턴스 IPC, 손상 바이트 원본 보존, dispatcher 스냅샷 격리.
+
+기존 `Expected 10, got 3` 오류는 동일한 시스템 시각으로 백업명이 충돌한 결과입니다. UTC+GUID 파일명으로 수정했고 고정 시각에서 연속 백업이 별개로 남으며 최종 10개가 보관되는지 검사합니다. 별도의 테스트 프레임워크나 런타임 패키지는 사용하지 않습니다.
+
+격리 앱은 `--diagnostic-data-directory`가 있는 Debug 빌드로 실행했습니다. 확인 후 테스트 프로세스만 종료했습니다. 실제 메모 폴더·자동 실행 레지스트리·Explorer·OS 구성은 변경하지 않았습니다. 테스트 데이터와 진단 출력은 무시되는 `TestResults/`에 둡니다.
+
+설치 파일은 런타임 포함·기존 Framework 건너뛰기·UAC 취소·재부팅·오프라인 설치·제거 후 데이터 보존을 별도 확인해야 합니다. 대상 OS와 DPI·IME·트레이·Desktop의 실제 표시 검증은 [호환성 체크리스트](compatibility.md), Shell 제약은 [Desktop 문서](desktop_widget.md)를 따릅니다.

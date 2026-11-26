@@ -1,27 +1,80 @@
-param([string]$OutputDirectory = 'artifacts')
+param(
+    [string]$OutputDirectory = 'artifacts',
+    [string]$RuntimePath,
+    [string]$CompilerPath
+)
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output = [IO.Path]::GetFullPath((Join-Path $repository $OutputDirectory))
 if (!$output.StartsWith($repository + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must be inside repository.' }
-New-Item -ItemType Directory -Force -Path $output | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-Add-Type -AssemblyName System.IO.Compression
+$cache = Join-Path $repository '.buildprofile\installer'
+New-Item -ItemType Directory -Force -Path $output, $cache | Out-Null
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# SIG: accept trusted publisher only; never execute partial downloads.
+function Assert-Publisher([string]$Path, [string]$Publisher) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne 'Valid') { throw "Invalid signature: $Path" }
+    if ($signature.SignerCertificate.Subject -notmatch $Publisher) { throw "Unexpected publisher: $Path" }
+}
+
+# GET: build-time download; target machines need no network.
+function Get-Payload([string]$Url, [string]$Path, [string]$Publisher) {
+    if (Test-Path -LiteralPath $Path) { Assert-Publisher $Path $Publisher; return }
+    $temporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp.exe'
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $temporary
+        Assert-Publisher $temporary $Publisher
+        Move-Item -LiteralPath $temporary -Destination $Path
+    }
+    finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary } }
+}
+
+if (!$RuntimePath) {
+    $RuntimePath = Join-Path $cache 'net48.exe'
+    Get-Payload 'https://go.microsoft.com/fwlink/?linkid=2088631' $RuntimePath 'O=Microsoft Corporation'
+}
+$RuntimePath = (Resolve-Path -LiteralPath $RuntimePath).Path
+Assert-Publisher $RuntimePath 'O=Microsoft Corporation'
+
+if (!$CompilerPath) {
+    # IS: pinned compiler produces Windows 7 SP1 compatible setup executables.
+    $CompilerPath = Join-Path $cache 'inno\ISCC.exe'
+    if (!(Test-Path -LiteralPath $CompilerPath)) {
+        $installer = Join-Path $cache 'innosetup-6.2.2.exe'
+        Get-Payload 'https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe' $installer 'Jordan Russell'
+        $directory = Join-Path $cache 'inno'
+        $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', ('/DIR="' + $directory + '"')) -WindowStyle Hidden -Wait -PassThru
+        if ($process.ExitCode -ne 0) { throw "Compiler setup failed: $($process.ExitCode)" }
+    }
+}
+$CompilerPath = (Resolve-Path -LiteralPath $CompilerPath).Path
 $checksums = @()
 foreach ($platform in @('x86', 'x64')) {
-    $build = Join-Path $repository "src\StickyNote\bin\$platform\Release"
-    $zip = Join-Path $output "sticky_note_windows_$platform.zip"
-    $temporary = $zip + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
-    $archive = [IO.Compression.ZipFile]::Open($temporary, [IO.Compression.ZipArchiveMode]::Create)
+    $temporary = Join-Path $output ([Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $temporary | Out-Null
     try {
-        # Explicit entries preserve README links and exclude stale build output.
-        foreach ($name in @('StickyNote.exe', 'StickyNote.exe.config', 'README.md', 'AGENTS.md', 'docs/architecture.md', 'docs/desktop_widget.md', 'docs/compatibility.md', 'docs/validation.md')) {
-            $source = if ($name.StartsWith('StickyNote.exe')) { Join-Path $build $name } else { Join-Path $repository $name }
-            if (!(Test-Path -LiteralPath $source)) { throw "Missing package input: $source" }
-            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $source, $name, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
-        }
+        & $CompilerPath "/DPlatform=$platform" "/DRepository=$repository" "/DRuntime=$RuntimePath" "/DOutput=$temporary" (Join-Path $PSScriptRoot 'setup.iss')
+        if ($LASTEXITCODE -ne 0) { throw "Installer compile failed: $platform" }
+        $name = "sticky_note_setup_$platform.exe"
+        $source = Join-Path $temporary $name
+        $target = Join-Path $output $name
+        $stream = [IO.File]::Open($source, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite)
+        try { $stream.Flush($true) }
+        finally { $stream.Dispose() }
+        if (Test-Path -LiteralPath $target) { [IO.File]::Replace($source, $target, "$target.bak") }
+        else { [IO.File]::Move($source, $target) }
+        $checksums += (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $name
     }
-    finally { $archive.Dispose() }
-    Move-Item -LiteralPath $temporary -Destination $zip -Force
-    $checksums += (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($zip)
+    finally {
+        if (!(Get-ChildItem -LiteralPath $temporary -Force)) { Remove-Item -LiteralPath $temporary }
+    }
 }
-[IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), $checksums, (New-Object Text.UTF8Encoding($false)))
+$checksumPath = Join-Path $output 'SHA256SUMS.txt'
+$checksumTemp = $checksumPath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+$bytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($checksums -join "`n") + "`n")
+$stream = [IO.File]::Open($checksumTemp, [IO.FileMode]::CreateNew)
+try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) }
+finally { $stream.Dispose() }
+if (Test-Path -LiteralPath $checksumPath) { [IO.File]::Replace($checksumTemp, $checksumPath, "$checksumPath.bak") }
+else { [IO.File]::Move($checksumTemp, $checksumPath) }

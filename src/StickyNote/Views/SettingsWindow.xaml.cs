@@ -14,6 +14,7 @@ namespace StickyNote.Views
     public partial class SettingsWindow : Window
     {
         private readonly App app;
+        // INIT: wire owned state and events.
         public SettingsWindow(App app)
         {
             this.app = app; InitializeComponent(); var settings = app.Notes.Settings;
@@ -23,9 +24,10 @@ namespace StickyNote.Views
             foreach (var color in Validation.Colors) BackgroundChoice.Items.Add(color); BackgroundChoice.Text = settings.backgroundColor;
             ForegroundInput.Text = settings.foregroundColor; FontInput.Text = settings.fontSize.ToString(CultureInfo.CurrentCulture); OpacityInput.Value = settings.opacity;
             foreach (var mode in new[] { "desktop", "normal", "topmost" }) ModeChoice.Items.Add(new ComboBoxItem { Content = Loc.Get(mode), Tag = mode });
-            ModeChoice.SelectedIndex = settings.displayMode == "desktop" ? 0 : settings.displayMode == "normal" ? 1 : 2;
+            ModeChoice.SelectedIndex = Array.IndexOf(new[] { "desktop", "normal", "topmost" }, settings.displayMode);
             LanguageChoice.Items.Add("한국어"); LanguageChoice.Items.Add("English"); LanguageChoice.SelectedIndex = settings.language == "en" ? 1 : 0;
         }
+        // CFG: validate and persist defaults.
         private async void SaveClick(object sender, RoutedEventArgs e)
         {
             double font;
@@ -40,6 +42,7 @@ namespace StickyNote.Views
             }
             catch (Exception error) { app.Report("settings-save", error); }
         }
+        // BAK: capture on dispatcher, export off thread.
         private async void ExportClick(object sender, RoutedEventArgs e)
         {
             var dialog = new SaveFileDialog { Filter = "JSON (*.json)|*.json", FileName = "sticky-note-backup.json", AddExtension = true };
@@ -47,6 +50,7 @@ namespace StickyNote.Views
             try { var data = app.Notes.Snapshot(); await Task.Run(() => app.Backups.Export(dialog.FileName, data)); MessageBox.Show(this, Loc.Get("Success")); }
             catch (Exception error) { app.Report("backup-export", error); }
         }
+        // REC: validate backup and confirm restore.
         private async void RestoreClick(object sender, RoutedEventArgs e)
         {
             var dialog = new OpenFileDialog { Filter = "JSON (*.json)|*.json" }; if (dialog.ShowDialog(this) != true) return;

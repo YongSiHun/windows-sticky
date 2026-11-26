@@ -9,6 +9,10 @@ namespace StickyNote.Utilities
         private static readonly ResourceManager English = new ResourceManager("StickyNote.Resources.English", typeof(Loc).Assembly);
         private static CultureInfo _culture = CultureInfo.GetCultureInfo("ko");
         public static CultureInfo Culture { get { return _culture; } set { _culture = value; } }
-        public static string Get(string key) { return (Culture.TwoLetterISOLanguageName == "en" ? English : Resources).GetString(key, CultureInfo.InvariantCulture) ?? key; }
+        // I18N: lookup with key fallback.
+        public static string Get(string key)
+        {
+            return (Culture.TwoLetterISOLanguageName == "en" ? English : Resources).GetString(key, CultureInfo.InvariantCulture) ?? key;
+        }
     }
 }
