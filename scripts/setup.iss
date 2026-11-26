@@ -85,30 +85,44 @@ Filename: "{app}\StickyNote.exe"; Description: "{cm:LaunchSticky}"; Flags: nowai
 
 [Code]
 var
-  StartupCheck: TNewCheckBox;
-  StartupPositioned: Boolean;
+  FinishOptions: TNewCheckListBox;
+  LaunchOption: Integer;
+  FinishOptionsPositioned: Boolean;
 
 procedure InitializeWizard;
 begin
-  StartupCheck := TNewCheckBox.Create(WizardForm);
-  StartupCheck.Parent := WizardForm.FinishedPage;
-  StartupCheck.Caption := CustomMessage('StartupSticky');
-  StartupCheck.Checked := True;
-  StartupCheck.Visible := False;
+  // Use the same renderer and font for both finished-page choices.
+  FinishOptions := TNewCheckListBox.Create(WizardForm);
+  FinishOptions.Parent := WizardForm.FinishedPage;
+  FinishOptions.Font.Assign(WizardForm.Font);
+  if FinishOptions.Font.Size < 10 then FinishOptions.Font.Size := 10;
+  FinishOptions.Color := WizardForm.RunList.Color;
+  FinishOptions.BorderStyle := bsNone;
+  FinishOptions.MinItemHeight := ScaleY(28);
+  FinishOptions.AddCheckBox(CustomMessage('StartupSticky'), '', 0,
+    True, True, False, True, nil);
+  FinishOptions.Visible := False;
+  LaunchOption := -1;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID <> wpFinished then Exit;
-  if not StartupPositioned then
+  // Leave the installer's restart radio buttons and their layout intact.
+  if WizardForm.YesRadio.Visible then Exit;
+  if not FinishOptionsPositioned then
   begin
-    StartupCheck.SetBounds(WizardForm.RunList.Left, WizardForm.RunList.Top,
-      WizardForm.RunList.Width, ScaleY(24));
-    WizardForm.RunList.Top := WizardForm.RunList.Top + ScaleY(28);
-    WizardForm.RunList.Height := WizardForm.RunList.Height - ScaleY(28);
-    StartupPositioned := True;
+    FinishOptions.SetBounds(WizardForm.RunList.Left,
+      WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(12),
+      WizardForm.RunList.Width, ScaleY(64));
+    // Keep the real [Run] item for Inno's normal launch handling.
+    if WizardForm.RunList.Items.Count > 0 then
+      LaunchOption := FinishOptions.AddCheckBox(WizardForm.RunList.ItemCaption[0], '', 0,
+        WizardForm.RunList.Checked[0], True, False, True, nil);
+    FinishOptionsPositioned := True;
   end;
-  StartupCheck.Visible := True;
+  WizardForm.RunList.Visible := False;
+  FinishOptions.Visible := True;
 end;
 
 // SETUP: pass the finished-page choice to the app without editing JSON in Pascal.
@@ -117,10 +131,10 @@ var
   Enabled: Cardinal;
 begin
   Enabled := 0;
-  if StartupCheck.Checked then Enabled := 1;
+  if FinishOptions.Checked[0] then Enabled := 1;
   if not RegWriteDWordValue(HKCU32, 'Software\StickyNote', 'InstallStartupEnabled', Enabled) then
     RaiseException('Unable to save startup preference.');
-  if StartupCheck.Checked then
+  if FinishOptions.Checked[0] then
   begin
     if not RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run',
       'StickyNote', '"' + ExpandConstant('{app}\StickyNote.exe') + '"') then
@@ -139,7 +153,12 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if CurPageID = wpFinished then SaveStartupChoice;
+  if CurPageID = wpFinished then
+  begin
+    SaveStartupChoice;
+    if LaunchOption >= 0 then
+      WizardForm.RunList.Checked[0] := FinishOptions.Checked[LaunchOption];
+  end;
 end;
 
 // NET: 4.8 or newer; 32-bit registry view works on x86/x64.
