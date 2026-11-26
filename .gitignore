@@ -8,3 +8,5 @@ artifacts/
 TestResults/
 .buildprofile/
 src/StickyNote/Assets/*.bak
+/VERSION.bak
+/VERSION.*.tmp
