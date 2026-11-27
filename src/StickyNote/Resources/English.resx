@@ -77,4 +77,5 @@ Sample note 123</value></data>
 <data name="ResetDefaults" xml:space="preserve"><value>Reset defaults</value></data>
 <data name="StartupRegistrationFailed" xml:space="preserve"><value>Unable to verify startup registration. Enable Start with Windows in settings and save, then check that Windows startup apps allow it.</value></data>
 <data name="StartupRegistered" xml:space="preserve"><value>Registered to start at sign-in. Keep it enabled in Windows startup apps.</value></data>
+<data name="RestoreSize" xml:space="preserve"><value>Restore size</value></data>
 </root>

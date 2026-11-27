@@ -77,4 +77,5 @@ Windows Stricky 123</value></data>
 <data name="ResetDefaults" xml:space="preserve"><value>기본값 복원</value></data>
 <data name="StartupRegistrationFailed" xml:space="preserve"><value>자동 실행 등록을 확인하지 못했습니다. 환경설정에서 Windows 시작 시 자동 실행을 체크하고 저장한 뒤, Windows 시작 앱에서도 사용 상태를 확인해 주세요.</value></data>
 <data name="StartupRegistered" xml:space="preserve"><value>로그인 시 자동 실행이 등록되어 있습니다. Windows 시작 앱에서도 사용으로 설정해 주세요.</value></data>
+<data name="RestoreSize" xml:space="preserve"><value>원래 크기로 복원</value></data>
 </root>

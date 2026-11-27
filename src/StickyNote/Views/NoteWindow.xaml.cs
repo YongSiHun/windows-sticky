@@ -27,6 +27,8 @@ namespace StickyNote.Views
             TitleDisplay.ToolTip = Loc.Get("EditTitleHint");
             Left = note.x; Top = note.y; Width = note.width; Height = note.height;
             AddButton.ToolTip = Loc.Get("NewNote"); DeleteButton.ToolTip = Loc.Get("Delete"); MenuButton.ToolTip = Loc.Get("Options");
+            RestoreButton.ToolTip = Loc.Get("RestoreSize");
+            System.Windows.Automation.AutomationProperties.SetName(RestoreButton, Loc.Get("RestoreSize"));
             OpacityLabel.Text = Loc.Get("Opacity"); FontLabel.Text = Loc.Get("FontSizeShort");
             System.Windows.Automation.AutomationProperties.SetName(AddButton, Loc.Get("NewNote"));
             System.Windows.Automation.AutomationProperties.SetName(DeleteButton, Loc.Get("Delete"));
@@ -72,6 +74,7 @@ namespace StickyNote.Views
         // RECT: persist DIP bounds and monitor.
         private void CaptureGeometry()
         {
+            if (WindowState != WindowState.Normal) return;
             note.x = Left;
             note.y = Top;
             note.width = Width;
@@ -87,11 +90,29 @@ namespace StickyNote.Views
                 BeginTitleEdit(); e.Handled = true; return;
             }
             if (e.ClickCount != 1 || e.LeftButton != MouseButtonState.Pressed) return;
+            RestoreNoteSize();
             Editor.Focus(); DragMove(); CaptureGeometry(); e.Handled = true;
+        }
+        // UI: borderless maximized notes need an explicit route back to resizing.
+        private void RestoreSize(object sender, RoutedEventArgs e)
+        {
+            RestoreNoteSize();
+        }
+        private void RestoreNoteSize()
+        {
+            if (WindowState == WindowState.Normal) return;
+            WindowState = WindowState.Normal;
+            CaptureGeometry();
+        }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Handled || e.Key != Key.Escape || WindowState != WindowState.Maximized) return;
+            RestoreNoteSize(); e.Handled = true;
         }
         private bool CanDragTitle()
         {
-            return !(TitleBox.IsMouseOver || AddButton.IsMouseOver || MenuButton.IsMouseOver || DeleteButton.IsMouseOver);
+            return !(TitleBox.IsMouseOver || AddButton.IsMouseOver || MenuButton.IsMouseOver || RestoreButton.IsMouseOver || DeleteButton.IsMouseOver);
         }
         internal void BeginTitleEdit()
         {
@@ -135,6 +156,7 @@ namespace StickyNote.Views
             var menu = new ContextMenu();
             menu.Items.Add(Item("NewNote", () => service.Create())); menu.Items.Add(Item("Duplicate", () => service.Create(note)));
             menu.Items.Add(Item("ShowAll", service.ShowAll));
+            menu.Items.Add(Item("RestoreSize", RestoreNoteSize));
             menu.Items.Add(Item("Settings", () => ((App)Application.Current).ShowSettings()));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Background", () => ChangeColor(note.backgroundColor, new Settings().backgroundColor, value => note.backgroundColor = value)));

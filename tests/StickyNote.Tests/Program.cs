@@ -47,6 +47,7 @@ namespace StickyNote.Tests
             Run("installer startup choice overrides old settings once and later opt-out survives", StartupDefaults);
             Run("Desktop defaults preserve saved display modes", DisplayModeDefaults);
             Run("inline title and note sliders update model", NoteControls);
+            Run("maximized note restores bounds and remains resizable", RestoreNoteBounds);
             Run("RGB picker updates preview and selected color", ColorControls);
             Run("font selection persists and old documents retain defaults", FontControls);
             Run("version checks reject malformed responses", VersionChecks);
@@ -414,6 +415,47 @@ namespace StickyNote.Tests
             Equal(true, saved.settings.normalModeDefaultApplied);
             Equal("topmost", saved.settings.displayMode);
             Equal("desktop", saved.notes.notes[0].displayMode);
+        }
+        // QA: maximize, restore through the visible button, then resize again.
+        private static void RestoreNoteBounds()
+        {
+            var log = new LogService(Path.Combine(root, "restore-bounds"));
+            using (var service = new NoteService(new Settings { displayMode = "normal" }, () => { }, log))
+            {
+                var note = new Note { displayMode = "normal", width = 340, height = 380 };
+                var window = new StickyNote.Views.NoteWindow(note, service, log);
+                try
+                {
+                    window.Show(); Pump(30);
+                    var original = new Rect(note.x, note.y, note.width, note.height);
+                    var button = (System.Windows.Controls.Button)window.FindName("RestoreButton");
+                    Equal(Visibility.Collapsed, button.Visibility);
+                    window.WindowState = WindowState.Maximized; Pump(30);
+                    Equal(Visibility.Visible, button.Visibility);
+                    window.Reposition(); Pump(30);
+                    Equal(original, new Rect(note.x, note.y, note.width, note.height));
+                    button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); Pump(30);
+                    Equal(WindowState.Normal, window.WindowState);
+                    Equal(Visibility.Collapsed, button.Visibility);
+                    Equal(original, new Rect(window.Left, window.Top, window.Width, window.Height));
+                    window.Width = 360; window.Height = 400; Pump(30);
+                    Equal(360d, note.width); Equal(400d, note.height);
+                    window.WindowState = WindowState.Maximized; Pump(30);
+                    window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>()
+                        .Single(item => Equals(item.Header, Loc.Get("RestoreSize")))
+                        .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+                    Pump(30); Equal(WindowState.Normal, window.WindowState);
+                    window.WindowState = WindowState.Maximized; Pump(30);
+                    var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
+                    editor.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                        PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Escape)
+                        { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+                    Pump(30); Equal(WindowState.Normal, window.WindowState);
+                    Equal(360d, note.width); Equal(400d, note.height);
+                    Equal("normal", note.displayMode);
+                }
+                finally { window.Destroy(); }
+            }
         }
         // QA: inline controls bind both ways and survive snapshot capture.
         private static void NoteControls()
