@@ -29,10 +29,6 @@
     <None Include="app.manifest"/><None Include="App.config"/>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="IncrementAppVersion" BeforeTargets="PrepareForBuild"
-          Condition="'$(AutoIncrementVersion)' != 'false' and '$(DesignTimeBuild)' != 'true' and '$(MSBuildProjectName)' == 'StickyNote'">
-    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\increment-version.ps1&quot;" />
-  </Target>
   <Target Name="GenerateAppVersion" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <AppVersion>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\VERSION').Trim())</AppVersion>

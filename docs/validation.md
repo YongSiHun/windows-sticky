@@ -1,5 +1,11 @@
 # 실행 검증
 
+## VERSION 파일 그대로 사용 (2026-11-28)
+
+- 빌드 스크립트와 MSBuild의 자동 버전 증가 경로 및 증가 전용 스크립트를 제거했습니다. 직접 빌드·통합 빌드·CI는 `VERSION` 값을 그대로 사용합니다.
+- `AutoIncrementVersion` 옵션 없이 x86/x64 대체 Release 재빌드를 수행해 두 실행 파일 모두 `VERSION`의 `1.2.7`과 일치하고 원본 파일 바이트가 유지되는 것을 확인했습니다. 콘솔 회귀 테스트는 각각 **31 통과 / 0 실패**, PowerShell 구문 검사와 `git diff --check`도 통과했습니다. 로그: `TestResults/version-file/`.
+- 정식 MSBuild `/restore`는 두 플랫폼 모두 사용자 NuGet 설정 폴더 접근 거부로 실패했습니다. Sonar 분석 및 Windows 7 실기 검증은 미실시입니다.
+
 ## 가독성·책임 분리·인지 복잡도 정리 (2026-11-28)
 
 - `App.OnStartup`의 실패 처리를 별도 메서드로 분리해 catch 내부의 중첩 분기를 제거했습니다. `SonarLint.xml`의 메서드·속성 인지 복잡도 상한 5와 S3776 오류 설정은 유지합니다.

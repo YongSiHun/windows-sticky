@@ -34,6 +34,6 @@ Dev: VS 2022 MSBuild · .NET 4.8 Dev Pack. Setup 빌드 시 인터넷 필요.
 
 GitHub: Actions → Build → Run workflow → windows-stricky-setup-버전 다운로드.
 
-Ver: 루트 `VERSION`이 버전 관리 파일입니다(`major.minor.patch`). 빌드마다 마지막 숫자가 자동으로 1 올라갑니다. `scripts/build.ps1`은 한 번만 올려 x86/x64 앱·설치 파일·CI 산출물에 같은 버전을 적용합니다. Visual Studio/MSBuild 직접 빌드도 자동 증가하며, Clean·복원·디자인 타임 빌드는 증가시키지 않습니다. 패키징은 빌드된 버전을 그대로 사용합니다.
+Ver: 루트 `VERSION`이 버전 관리 파일입니다(`major.minor.patch`). Visual Studio/MSBuild 직접 빌드와 `scripts/build.ps1`은 이 값을 그대로 사용하며 파일을 변경하지 않습니다. x86/x64 앱·설치 파일·CI 산출물 모두 같은 파일의 버전을 사용합니다.
 
-큰 버전 변경은 `VERSION`을 직접 수정하세요. 증가 전 값은 `VERSION.bak`에 보관하며 잘못된 형식은 원본을 보존하고 빌드를 중단합니다. 빌드 시작 시 버전을 예약하므로 실패한 빌드도 번호를 사용합니다. 동일 버전 재빌드가 필요하면 MSBuild에 `/p:AutoIncrementVersion=false`를 지정하세요. CI에서 증가한 버전은 해당 작업의 체크아웃에만 남으므로 다음 작업에도 이어가려면 변경된 `VERSION`을 저장소에 커밋해야 합니다.
+버전을 변경하려면 `VERSION`을 직접 수정해 커밋한 뒤 빌드하세요. 빌드 성공·실패·재빌드 여부와 관계없이 버전이 자동으로 증가하지 않습니다.
