@@ -36,8 +36,7 @@ UsePreviousLanguage=no
 LanguageDetectionMethod=uilanguage
 SetupIconFile={#Repository}\src\StickyNote\Assets\App.ico
 DisableProgramGroupPage=yes
-CloseApplications=yes
-CloseApplicationsFilter=StickyNote.exe
+CloseApplications=no
 RestartApplications=no
 UninstallDisplayIcon={app}\StickyNote.exe
 
@@ -46,8 +45,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "korean"; MessagesFile: "compiler:Default.isl,{#Repository}\scripts\Korean.isl"
 
 [CustomMessages]
-english.LaunchSticky=Run Windows Stricky
-korean.LaunchSticky=Windows Stricky 실행
 english.StartupSticky=Start with Windows
 korean.StartupSticky=Windows 시작 시 자동 실행
 english.UninstallSticky=Uninstall Windows Stricky
@@ -62,11 +59,17 @@ english.RuntimeLaunchFailed=Unable to start the bundled .NET Framework 4.8 insta
 korean.RuntimeLaunchFailed=포함된 .NET Framework 4.8 설치 파일을 실행하지 못했습니다.
 english.UninstallCloseFailed=Windows Stricky could not be closed. Save your notes and close the app, then retry uninstalling.
 korean.UninstallCloseFailed=Windows Stricky를 종료하지 못했습니다. 메모를 저장하고 프로그램을 종료한 뒤 제거를 다시 실행해 주세요.
+english.InstallCloseFailed=Windows Stricky could not be closed. Save your notes and close the app, then retry setup.
+korean.InstallCloseFailed=Windows Stricky를 종료하지 못했습니다. 메모를 저장하고 프로그램을 종료한 뒤 설치를 다시 실행해 주세요.
+english.InstallLaunchFailed=Installation completed, but Windows Stricky could not be started. Start it from the desktop shortcut.
+korean.InstallLaunchFailed=설치는 완료했지만 Windows Stricky를 실행하지 못했습니다. 바탕 화면 바로가기로 실행해 주세요.
 
 [Files]
 Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Runtime}"; DestName: "net48.exe"; Flags: dontcopy
+Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe"; DestName: "StickyNoteShutdown.exe"; Flags: dontcopy
+Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe.config"; DestName: "StickyNoteShutdown.exe.config"; Flags: dontcopy
 
 [Icons]
 Name: "{userprograms}\Windows Stricky"; Filename: "{app}\StickyNote.exe"; WorkingDir: "{app}"
@@ -82,13 +85,9 @@ Type: files; Name: "{userprograms}\Sticky Note\Uninstall Sticky Note.lnk"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "StickyNote"; Flags: uninsdeletevalue
 Root: HKCU32; Subkey: "Software\StickyNote"; ValueType: none; ValueName: "InstallStartupEnabled"; Flags: uninsdeletevalue
 
-[Run]
-Filename: "{app}\StickyNote.exe"; Description: "{cm:LaunchSticky}"; Flags: nowait postinstall skipifsilent; Check: HasFramework
-
 [Code]
 var
   FinishOptions: TNewCheckListBox;
-  LaunchOption: Integer;
   FinishOptionsPositioned: Boolean;
 
 // Close only after uninstall confirmation, before deleting installed files.
@@ -109,7 +108,7 @@ end;
 
 procedure InitializeWizard;
 begin
-  // Use the same renderer and font for both finished-page choices.
+  // Keep startup optional; every successful install launches the updated application.
   FinishOptions := TNewCheckListBox.Create(WizardForm);
   FinishOptions.Parent := WizardForm.FinishedPage;
   FinishOptions.Font.Assign(WizardForm.Font);
@@ -120,7 +119,6 @@ begin
   FinishOptions.AddCheckBox(CustomMessage('StartupSticky'), '', 0,
     True, True, False, True, nil);
   FinishOptions.Visible := False;
-  LaunchOption := -1;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -132,11 +130,7 @@ begin
   begin
     FinishOptions.SetBounds(WizardForm.RunList.Left,
       WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(12),
-      WizardForm.RunList.Width, ScaleY(64));
-    // Keep the real [Run] item for Inno's normal launch handling.
-    if WizardForm.RunList.Items.Count > 0 then
-      LaunchOption := FinishOptions.AddCheckBox(WizardForm.RunList.ItemCaption[0], '', 0,
-        WizardForm.RunList.Checked[0], True, False, True, nil);
+      WizardForm.RunList.Width, ScaleY(32));
     FinishOptionsPositioned := True;
   end;
   WizardForm.RunList.Visible := False;
@@ -163,9 +157,18 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
 begin
   // Silent installs and interrupted finished pages retain the checked default.
   if CurStep = ssPostInstall then SaveStartupChoice;
+  // ssDone follows the finished-page startup choice and also runs in silent setup.
+  if CurStep = ssDone then
+  begin
+    if not ExecAsOriginalUser(ExpandConstant('{app}\StickyNote.exe'), '',
+      ExpandConstant('{app}'), SW_SHOWNORMAL, ewNoWait, Code) then
+      SuppressibleMsgBox(CustomMessage('InstallLaunchFailed'), mbError, MB_OK, IDOK);
+  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -174,8 +177,6 @@ begin
   if CurPageID = wpFinished then
   begin
     SaveStartupChoice;
-    if LaunchOption >= 0 then
-      WizardForm.RunList.Checked[0] := FinishOptions.Checked[LaunchOption];
   end;
 end;
 
@@ -208,7 +209,7 @@ begin
 end;
 
 // NET: embedded offline prerequisite; elevation only when needed.
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+function InstallFramework(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
 begin
@@ -221,4 +222,21 @@ begin
     Exit;
   end;
   Result := RuntimeResult(Code, NeedsRestart);
+end;
+
+// Wait for the current user's app to save and release its executable before replacement.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+begin
+  Result := InstallFramework(NeedsRestart);
+  if Result <> '' then Exit;
+  ExtractTemporaryFile('StickyNoteShutdown.exe');
+  ExtractTemporaryFile('StickyNoteShutdown.exe.config');
+  Result := CustomMessage('InstallCloseFailed');
+  if ExecAsOriginalUser(ExpandConstant('{tmp}\StickyNoteShutdown.exe'), '--shutdown',
+    ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, Code) then
+  begin
+    if Code = 0 then Result := '';
+  end;
 end;

@@ -144,7 +144,25 @@ namespace StickyNote.Views
         private void RestoreNoteSize()
         {
             if (WindowState == WindowState.Normal) return;
+            var cursor = System.Windows.Forms.Cursor.Position;
+            var screenPoint = new Point(cursor.X, cursor.Y);
+            var localPoint = PointFromScreen(screenPoint);
+            var horizontalAnchor = Math.Max(0, Math.Min(1, localPoint.X / ActualWidth));
+            var verticalAnchor = Math.Max(0, Math.Min(TitleBar.ActualHeight, localPoint.Y));
+            var source = PresentationSource.FromVisual(this);
+            var matrix = source.CompositionTarget.TransformFromDevice;
+            var position = matrix.Transform(screenPoint);
+            var area = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+            var workArea = new Rect(matrix.Transform(new Point(area.Left, area.Top)),
+                matrix.Transform(new Point(area.Right, area.Bottom)));
             WindowState = WindowState.Normal;
+            // Keep the grabbed title position under the cursor instead of jumping to old bounds.
+            var bounds = ScreenService.Clamp(new Rect(position.X - Width * horizontalAnchor,
+                position.Y - verticalAnchor, Width, Height), new[] { workArea });
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = bounds.Width;
+            Height = bounds.Height;
             CaptureGeometry();
         }
 

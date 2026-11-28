@@ -51,7 +51,7 @@ namespace StickyNote.Tests
             Run("installer startup choice overrides old settings once and later opt-out survives", StartupDefaults);
             Run("Desktop defaults preserve saved display modes", DisplayModeDefaults);
             Run("inline title and note sliders update model", NoteControls);
-            Run("maximized note restores bounds and remains resizable", RestoreNoteBounds);
+            Run("maximized note restores at cursor and remains resizable", RestoreNoteBounds);
             Run("RGB picker updates preview and selected color", ColorControls);
             Run("font selection persists and old documents retain defaults", FontControls);
             Run("version checks reject malformed responses", VersionChecks);
@@ -656,7 +656,10 @@ namespace StickyNote.Tests
                     Pump(30);
                     Equal(WindowState.Normal, window.WindowState);
                     Equal(Visibility.Collapsed, button.Visibility);
-                    Equal(original, new Rect(window.Left, window.Top, window.Width, window.Height));
+                    AssertRestoredAtCursor(window);
+                    Equal(original.Size, new Size(window.Width, window.Height));
+                    Equal(new Rect(window.Left, window.Top, window.Width, window.Height),
+                        new Rect(note.x, note.y, note.width, note.height));
                     window.Width = 360;
                     window.Height = 400;
                     Pump(30);
@@ -669,6 +672,7 @@ namespace StickyNote.Tests
                     .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
                     Pump(30);
                     Equal(WindowState.Normal, window.WindowState);
+                    AssertRestoredAtCursor(window);
                     window.WindowState = WindowState.Maximized;
                     Pump(30);
                     var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
@@ -679,6 +683,7 @@ namespace StickyNote.Tests
                     });
                     Pump(30);
                     Equal(WindowState.Normal, window.WindowState);
+                    AssertRestoredAtCursor(window);
                     Equal(360d, note.width);
                     Equal(400d, note.height);
                     Equal("normal", note.displayMode);
@@ -688,6 +693,23 @@ namespace StickyNote.Tests
                     window.Destroy();
                 }
             }
+        }
+
+        // QA: cursor stays over the restored title unless a work-area edge prevents it.
+        private static void AssertRestoredAtCursor(Window window)
+        {
+            var cursor = System.Windows.Forms.Cursor.Position;
+            var local = window.PointFromScreen(new Point(cursor.X, cursor.Y));
+            var area = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+            var title = (System.Windows.Controls.Grid)window.FindName("TitleBar");
+            var topLeft = window.PointToScreen(new Point(0, 0));
+            var bottomRight = window.PointToScreen(new Point(window.ActualWidth, window.ActualHeight));
+            Equal(true, topLeft.X >= area.Left - 1 && topLeft.Y >= area.Top - 1);
+            Equal(true, bottomRight.X <= area.Right + 1 && bottomRight.Y <= area.Bottom + 1);
+            if (cursor.X >= area.Left && cursor.X <= area.Right)
+                Equal(true, local.X >= -1 && local.X <= window.ActualWidth + 1);
+            if (cursor.Y >= area.Top && bottomRight.Y < area.Bottom - 1)
+                Equal(true, local.Y >= -1 && local.Y <= title.ActualHeight + 1);
         }
 
         // QA: inline controls bind both ways and survive snapshot capture.

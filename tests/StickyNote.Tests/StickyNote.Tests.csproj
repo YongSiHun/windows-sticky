@@ -7,6 +7,7 @@
   <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>
  </PropertyGroup>
  <ItemGroup>
+  <Reference Include="System.Drawing"/><Reference Include="System.Windows.Forms"/>
   <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Xaml"/><Reference Include="WindowsBase"/><Reference Include="PresentationCore"/><Reference Include="PresentationFramework"/>
   <ProjectReference Include="..\..\src\StickyNote\StickyNote.csproj"><Project>{A3142C21-8A03-41D8-9EB3-17933227A441}</Project><Name>StickyNote</Name></ProjectReference>
   <Compile Include="Program.cs"/>
