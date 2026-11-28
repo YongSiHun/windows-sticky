@@ -47,6 +47,10 @@
 
 동일 AppId와 기본 설치 경로로 새 버전을 기존 설치 위에 설치합니다. CloseApplications=yes와 StickyNote.exe 필터로 Windows Restart Manager의 정상 종료를 사용하고 강제 종료는 요청하지 않습니다. 메모·설정 데이터 경로는 교체 대상에 포함하지 않습니다. 설치 중 저장 실패·종료 거부·재부팅 요구 및 x86/x64 전환은 실기 검증 대상입니다.
 
+제거 확인 후 `CurUninstallStepChanged(usUninstall)`에서 설치된 앱을 `--shutdown`으로 숨겨 실행합니다. 이 보조 프로세스는 저장소·메모·자동 실행 설정을 초기화하지 않고, 현재 사용자/세션의 단일 인스턴스 Pipe로 종료를 요청합니다. 실행 중 앱은 dispatcher에서 기존 저장 후 종료 경로를 사용합니다. 보조 프로세스는 대상 프로세스 종료를 최대 30초 기다리며, 실패하면 제거 스크립트가 안내 후 `Abort`하여 파일 제거를 중단합니다. 실행 중인 앱이 없으면 성공 처리합니다. 다른 세션의 앱 종료는 지원하지 않으며, 예전 버전의 제거 프로그램에는 이 변경이 소급 적용되지 않습니다. 실제 제거 및 Windows 7 검증은 별도 수행해야 합니다.
+
+제거 이벤트와 중단 동작은 [Inno Setup 이벤트 문서](https://jrsoftware.org/inno-setup/documentation/topic_scriptevents.htm) 및 [Abort 문서](https://jrsoftware.org/ishelp/topic_isxfunc_abort.htm)를 따릅니다.
+
 배경색·글자색은 공통 `ColorWindow`의 색상표를 클릭·드래그하여 선택합니다. 색조 막대와 채도/명도 영역에서 RGB 슬라이더·HEX 미리보기가 함께 갱신되며, 32개 기본 색상도 제공합니다. 저장하면 모델에 반영하고 취소하면 기존 값을 유지합니다. 작은 작업 영역에서는 선택창을 스크롤할 수 있습니다. `FontWindow`에서 설치된 글씨체를 선택하고 한글/영문 견본을 확인합니다. 메모·설정의 v1 스키마에 선택 필드 `fontFamily`를 추가했으며, 기존 파일에 없으면 Segoe UI를 사용합니다. 다른 PC에 글씨체가 없으면 WPF 대체 글꼴을 사용하며 저장된 이름은 보존합니다. 알 수 없는 스키마 버전은 계속 거부합니다.
 
 원본 아이콘은 `Assets/App.svg`, 배포용은 16~256px 프레임을 포함한 `App.ico`입니다. `scripts/generate-icon.ps1`로 재생성합니다. 앱 EXE·WPF 창·트레이·설치 EXE·제거 항목이 같은 아이콘을 사용합니다.

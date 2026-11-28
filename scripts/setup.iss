@@ -60,6 +60,8 @@ english.RuntimeMissing=.NET Framework 4.8 was not found. Restart Windows and ret
 korean.RuntimeMissing=.NET Framework 4.8을 확인할 수 없습니다. Windows를 다시 시작한 뒤 설치를 다시 실행해 주세요.
 english.RuntimeLaunchFailed=Unable to start the bundled .NET Framework 4.8 installer.
 korean.RuntimeLaunchFailed=포함된 .NET Framework 4.8 설치 파일을 실행하지 못했습니다.
+english.UninstallCloseFailed=Windows Stricky could not be closed. Save your notes and close the app, then retry uninstalling.
+korean.UninstallCloseFailed=Windows Stricky를 종료하지 못했습니다. 메모를 저장하고 프로그램을 종료한 뒤 제거를 다시 실행해 주세요.
 
 [Files]
 Source: "{#Repository}\src\StickyNote\bin\{#Platform}\Release\StickyNote.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -88,6 +90,22 @@ var
   FinishOptions: TNewCheckListBox;
   LaunchOption: Integer;
   FinishOptionsPositioned: Boolean;
+
+// Close only after uninstall confirmation, before deleting installed files.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Code: Integer;
+begin
+  if CurUninstallStep <> usUninstall then Exit;
+  if not FileExists(ExpandConstant('{app}\StickyNote.exe')) then Exit;
+  if Exec(ExpandConstant('{app}\StickyNote.exe'), '--shutdown', ExpandConstant('{app}'),
+    SW_HIDE, ewWaitUntilTerminated, Code) then
+  begin
+    if Code = 0 then Exit;
+  end;
+  SuppressibleMsgBox(CustomMessage('UninstallCloseFailed'), mbError, MB_OK, IDOK);
+  Abort;
+end;
 
 procedure InitializeWizard;
 begin

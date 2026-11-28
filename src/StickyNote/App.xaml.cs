@@ -27,6 +27,11 @@ namespace StickyNote
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            if (e.Args.Length == 1 && e.Args[0] == "--shutdown")
+            {
+                ShutdownForUninstall();
+                return;
+            }
             try
             {
                 InitializeStorage(e);
@@ -41,6 +46,16 @@ namespace StickyNote
             {
                 if (log != null) log.Write("startup", error); MessageBox.Show(Loc.Get("StartupError"), Loc.Get("AppTitle")); Cleanup(); Shutdown(1);
             }
+        }
+        // UNINSTALL: do not load storage, create notes or register startup in the helper.
+        private void ShutdownForUninstall()
+        {
+            try
+            {
+                using (var running = new SingleInstanceService())
+                    Shutdown(running.RequestExit() ? 0 : 1);
+            }
+            catch { Shutdown(1); }
         }
         // INIT: storage location; QA override is Debug-only.
         private void InitializeStorage(StartupEventArgs e)
@@ -120,7 +135,8 @@ namespace StickyNote
             SystemEvents.DisplaySettingsChanged += DisplayChanged;
             SystemEvents.PowerModeChanged += PowerChanged;
             SessionEnding += Ending;
-            instance.Listen(() => Dispatcher.Invoke(new Action(OpenNotes)), log);
+            instance.Listen(() => Dispatcher.Invoke(new Action(OpenNotes)), log,
+                () => Dispatcher.BeginInvoke(new Action(ExitApplication)));
         }
         // REC: explain protected storage.
         private void ShowRecoveryStatus()

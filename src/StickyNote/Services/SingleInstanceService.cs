@@ -38,6 +38,28 @@ namespace StickyNote.Services
             }
             return false;
         }
+        // UNINSTALL: request normal shutdown and wait until the executable is released.
+        public bool RequestExit()
+        {
+            if (IsFirst) return true;
+            try
+            {
+                uint process;
+                if (!SendSignal(2, out process)) return false;
+                return WaitForExit(process);
+            }
+            catch (TimeoutException) { return false; }
+            catch (System.IO.IOException) { return false; }
+        }
+        private static bool WaitForExit(uint process)
+        {
+            try
+            {
+                using (var running = System.Diagnostics.Process.GetProcessById((int)process))
+                    return running.WaitForExit(30000);
+            }
+            catch (ArgumentException) { return true; } // Already exited after the acknowledgment.
+        }
         // IPC: treat transient transport failures as retryable.
         private bool TryActivate()
         {
@@ -48,17 +70,26 @@ namespace StickyNote.Services
         // IPC: keep the connection alive until activation is acknowledged.
         private bool ConnectAndWaitForActivation()
         {
+            uint process;
+            return SendSignal(1, out process);
+        }
+        private bool SendSignal(byte command, out uint process)
+        {
             using (var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous))
             {
                 client.Connect(800);
-                uint process;
-                if (StickyNote.Interop.NativeMethods.GetNamedPipeServerProcessId(client.SafePipeHandle, out process)) StickyNote.Interop.NativeMethods.AllowSetForegroundWindow(process);
-                client.WriteByte(1);
+                if (!StickyNote.Interop.NativeMethods.GetNamedPipeServerProcessId(client.SafePipeHandle, out process)) return false;
+                StickyNote.Interop.NativeMethods.AllowSetForegroundWindow(process);
+                client.WriteByte(command);
                 return ReadSignal(client);
             }
         }
         // IPC: both sides use a bounded handshake; an idle client cannot hold the listener.
         private static bool ReadSignal(System.IO.Stream stream)
+        {
+            return ReadCommand(stream) == 1;
+        }
+        private static int ReadCommand(System.IO.Stream stream)
         {
             var reply = new byte[1];
             var read = stream.ReadAsync(reply, 0, reply.Length);
@@ -66,19 +97,19 @@ namespace StickyNote.Services
             {
                 read.ContinueWith(task => task.Exception.Handle(error => true),
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
-                return false;
+                return -1;
             }
-            return read.GetAwaiter().GetResult() == 1 && reply[0] == 1;
+            return read.GetAwaiter().GetResult() == 1 ? reply[0] : -1;
         }
         // IPC: start connection listener.
-        public void Listen(Action activate, LogService log)
+        public void Listen(Action activate, LogService log, Action exit = null)
         {
-            Task.Run(() => ListenCore(activate, log));
+            Task.Run(() => ListenCore(activate, exit, log));
         }
         // IPC: stop cleanly after disposal or transport failure.
-        private void ListenCore(Action activate, LogService log)
+        private void ListenCore(Action activate, Action exit, LogService log)
         {
-            try { while (Accept(activate)) { } }
+            try { while (Accept(activate, exit)) { } }
             catch (Exception error) { ListenerFailed(error, log); }
         }
         // ACL: current user only.
@@ -90,7 +121,7 @@ namespace StickyNote.Services
             return new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 0, security);
         }
         // IPC: acknowledge only after the activation callback has run.
-        private bool Accept(Action activate)
+        private bool Accept(Action activate, Action exit)
         {
             NamedPipeServerStream current;
             lock (sync)
@@ -101,9 +132,7 @@ namespace StickyNote.Services
             try
             {
                 current.WaitForConnection();
-                if (!ReadSignal(current)) return true;
-                activate();
-                current.WriteByte(1);
+                DispatchCommand(current, activate, exit);
             }
             catch (System.IO.IOException) { /* A timed-out client must not stop the listener. */ }
             finally
@@ -111,6 +140,20 @@ namespace StickyNote.Services
                 lock (sync) { current.Dispose(); if (server == current) server = null; }
             }
             return true;
+        }
+        private static void DispatchCommand(System.IO.Stream current, Action activate, Action exit)
+        {
+            var command = ReadCommand(current);
+            if (command == 2 && exit != null)
+            {
+                // Acknowledge before shutdown can dispose the pipe.
+                current.WriteByte(1);
+                exit();
+                return;
+            }
+            if (command != 1) return;
+            activate();
+            current.WriteByte(1);
         }
         // ERR: ignore expected shutdown interruption.
         private void ListenerFailed(Exception error, LogService log)

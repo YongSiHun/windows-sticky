@@ -22,6 +22,7 @@ namespace StickyNote.Tests
         private static int Main(string[] args)
         {
             if (args.Length == 2 && args[0] == "--signal-instance") return SignalInstance(args[1]);
+            if (args.Length == 2 && args[0] == "--exit-server") return ExitServer(args[1]);
             root = Path.Combine(Environment.CurrentDirectory, "TestResults", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
             Run("UTF-8 JSON round trip and UTC", JsonRoundTrip);
             Run("schema migration boundary rejects unknown and missing versions", SchemaBoundary);
@@ -42,6 +43,7 @@ namespace StickyNote.Tests
             Run("single instance IPC acknowledges activation before success", InstanceAcknowledgment);
             Run("single instance IPC survives a timed-out client", InstanceTimeoutRecovery);
             Run("single instance IPC accepts repeated child processes", InstanceProcesses);
+            Run("uninstall requests normal exit and waits for the process", UninstallExit);
             Run("restore archives corrupt bytes exactly", RestoreCorruptBytes);
             Run("snapshots are detached and dispatcher-affine", DetachedSnapshots);
             Run("installer startup choice overrides old settings once and later opt-out survives", StartupDefaults);
@@ -328,6 +330,44 @@ namespace StickyNote.Tests
                 Equal(0, child.ExitCode);
             }
         }
+        private static int ExitServer(string scope)
+        {
+            using (var instance = new SingleInstanceService(scope))
+            using (var requested = new ManualResetEvent(false))
+            using (var ready = System.Threading.EventWaitHandle.OpenExisting(@"Local\" + scope))
+            {
+                instance.Listen(() => { }, new LogService(Path.Combine(Environment.CurrentDirectory, "TestResults", scope)), () => requested.Set());
+                ready.Set();
+                if (!requested.WaitOne(10000)) return 2;
+                Thread.Sleep(150); // Simulate final save before releasing process resources.
+            }
+            return 0;
+        }
+        private static void UninstallExit()
+        {
+            var scope = Guid.NewGuid().ToString("N");
+            using (var idle = new SingleInstanceService(scope)) Equal(true, idle.RequestExit());
+            using (var ready = new EventWaitHandle(false, EventResetMode.ManualReset, @"Local\" + scope))
+            {
+                var start = new System.Diagnostics.ProcessStartInfo(typeof(Program).Assembly.Location, "--exit-server " + scope);
+                start.UseShellExecute = false; start.CreateNoWindow = true;
+                using (var child = System.Diagnostics.Process.Start(start))
+                {
+                    try
+                    {
+                        Equal(true, ready.WaitOne(5000));
+                        using (var client = new SingleInstanceService(scope))
+                        {
+                            Equal(false, client.IsFirst);
+                            Equal(true, client.RequestExit());
+                        }
+                        Equal(true, child.HasExited); Equal(0, child.ExitCode);
+                    }
+                    finally { if (!child.HasExited) { child.Kill(); child.WaitForExit(); } }
+                }
+            }
+        }
+
         // QA: secondary process uses the same user/session-scoped IPC path.
         private static int SignalInstance(string scope)
         {
