@@ -706,10 +706,22 @@ namespace StickyNote.Tests
             var bottomRight = window.PointToScreen(new Point(window.ActualWidth, window.ActualHeight));
             Equal(true, topLeft.X >= area.Left - 1 && topLeft.Y >= area.Top - 1);
             Equal(true, bottomRight.X <= area.Right + 1 && bottomRight.Y <= area.Bottom + 1);
-            if (cursor.X >= area.Left && cursor.X <= area.Right)
-                Equal(true, local.X >= -1 && local.X <= window.ActualWidth + 1);
-            if (cursor.Y >= area.Top && bottomRight.Y < area.Bottom - 1)
-                Equal(true, local.Y >= -1 && local.Y <= title.ActualHeight + 1);
+            AssertRestoredCursorHorizontal(cursor.X, local.X, window.ActualWidth, area);
+            AssertRestoredCursorVertical(cursor.Y, local.Y, title.ActualHeight, bottomRight.Y, area);
+        }
+
+        private static void AssertRestoredCursorHorizontal(double cursorX, double localX, double width,
+            System.Drawing.Rectangle area)
+        {
+            if (cursorX >= area.Left && cursorX <= area.Right)
+                Equal(true, localX >= -1 && localX <= width + 1);
+        }
+
+        private static void AssertRestoredCursorVertical(double cursorY, double localY, double titleHeight,
+            double bottom, System.Drawing.Rectangle area)
+        {
+            if (cursorY >= area.Top && bottom < area.Bottom - 1)
+                Equal(true, localY >= -1 && localY <= titleHeight + 1);
         }
 
         // QA: inline controls bind both ways and survive snapshot capture.
