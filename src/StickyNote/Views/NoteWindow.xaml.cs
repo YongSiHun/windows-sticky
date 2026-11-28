@@ -16,30 +16,49 @@ namespace StickyNote.Views
         private readonly LogService log;
         private DesktopWidgetService desktop;
         private bool destroying, ready;
-        // INIT: wire owned state and events.
+        // Bind the note and connect editor events before creating the native window.
         public NoteWindow(Note note, NoteService service, LogService log)
         {
-            this.note = note; this.service = service; this.log = log;
-            InitializeComponent(); DataContext = note;
+            this.note = note;
+            this.service = service;
+            this.log = log;
+            InitializeComponent();
+            DataContext = note;
             TitleBox.LostKeyboardFocus += (s, e) => FinishTitleEdit();
-            TitleBox.KeyDown += (s, e) => { if (e.Key == Key.Enter || e.Key == Key.Escape) { FinishTitleEdit(); Editor.Focus(); e.Handled = true; } };
+            TitleBox.KeyDown += FinishTitleKeyDown;
+            InitializeLabels();
+            Left = note.x;
+            Top = note.y;
+            Width = note.width;
+            Height = note.height;
+            SourceInitialized += InitializedSource;
+            LocationChanged += GeometryChanged;
+            SizeChanged += GeometryChanged;
+            Closing += OnClosing;
+            note.PropertyChanged += NoteChanged;
+            ContextMenu = BuildMenu();
+        }
+
+        // Keep localized captions and accessibility names together.
+        private void InitializeLabels()
+        {
             TitleBox.ToolTip = Loc.Get("EditTitleHint");
             TitleDisplay.ToolTip = Loc.Get("EditTitleHint");
-            Left = note.x; Top = note.y; Width = note.width; Height = note.height;
-            AddButton.ToolTip = Loc.Get("NewNote"); DeleteButton.ToolTip = Loc.Get("Delete"); MenuButton.ToolTip = Loc.Get("Options");
+            AddButton.ToolTip = Loc.Get("NewNote");
+            DeleteButton.ToolTip = Loc.Get("Delete");
+            MenuButton.ToolTip = Loc.Get("Options");
             RestoreButton.ToolTip = Loc.Get("RestoreSize");
             System.Windows.Automation.AutomationProperties.SetName(RestoreButton, Loc.Get("RestoreSize"));
-            OpacityLabel.Text = Loc.Get("Opacity"); FontLabel.Text = Loc.Get("FontSizeShort");
+            OpacityLabel.Text = Loc.Get("Opacity");
+            FontLabel.Text = Loc.Get("FontSizeShort");
             System.Windows.Automation.AutomationProperties.SetName(AddButton, Loc.Get("NewNote"));
             System.Windows.Automation.AutomationProperties.SetName(DeleteButton, Loc.Get("Delete"));
             System.Windows.Automation.AutomationProperties.SetName(TitleBox, Loc.Get("Title"));
             System.Windows.Automation.AutomationProperties.SetName(Editor, Loc.Get("Content"));
             System.Windows.Automation.AutomationProperties.SetName(OpacityGauge, Loc.Get("Opacity"));
             System.Windows.Automation.AutomationProperties.SetName(FontGauge, Loc.Get("FontSize"));
-            SourceInitialized += InitializedSource; LocationChanged += GeometryChanged; SizeChanged += GeometryChanged;
-            Closing += OnClosing; note.PropertyChanged += NoteChanged;
-            ContextMenu = BuildMenu();
         }
+
         // UI: raise a normal note and focus its editor without making it always-on-top.
         public void ActivateEditor()
         {
@@ -47,30 +66,45 @@ namespace StickyNote.Views
             Activate();
             Editor.Focus();
         }
+
         // HWND: initialize display mode after handle creation.
         private void InitializedSource(object sender, EventArgs e)
         {
-            Reposition(); ready = true; CaptureGeometry();
-            try { desktop = new DesktopWidgetService(this, log); desktop.Apply(note.displayMode); }
-            catch (Exception error) { log.Write("desktop-initialize", error); Topmost = note.displayMode == "topmost"; }
+            Reposition();
+            ready = true;
+            CaptureGeometry();
+            try
+            {
+                desktop = new DesktopWidgetService(this, log);
+                desktop.Apply(note.displayMode);
+            }
+            catch (Exception error)
+            {
+                log.Write("desktop-initialize", error);
+                Topmost = note.displayMode == "topmost";
+            }
         }
+
         // DPI: clamp to current work area.
         public void Reposition()
         {
             ScreenService.Reposition(this, note);
             if (ready) CaptureGeometry();
         }
+
         // MODE: apply changed request.
         private void NoteChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != "displayMode" || desktop == null) return;
             desktop.Apply(note.displayMode);
         }
+
         // RECT: capture normal window bounds.
         private void GeometryChanged(object sender, EventArgs e)
         {
             if (ready && WindowState == WindowState.Normal) CaptureGeometry();
         }
+
         // RECT: persist DIP bounds and monitor.
         private void CaptureGeometry()
         {
@@ -81,63 +115,99 @@ namespace StickyNote.Views
             note.height = Height;
             ScreenService.UpdateMonitor(this, note);
         }
+
         // UI: drag title area.
         private void DragTitle(object sender, MouseButtonEventArgs e)
         {
             if (!CanDragTitle()) return;
             if (e.ClickCount == 2)
             {
-                BeginTitleEdit(); e.Handled = true; return;
+                BeginTitleEdit();
+                e.Handled = true;
+                return;
             }
             if (e.ClickCount != 1 || e.LeftButton != MouseButtonState.Pressed) return;
             RestoreNoteSize();
-            Editor.Focus(); DragMove(); CaptureGeometry(); e.Handled = true;
+            Editor.Focus();
+            DragMove();
+            CaptureGeometry();
+            e.Handled = true;
         }
+
         // UI: borderless maximized notes need an explicit route back to resizing.
         private void RestoreSize(object sender, RoutedEventArgs e)
         {
             RestoreNoteSize();
         }
+
+        // Restore normal sizing before dragging or resizing a maximized note.
         private void RestoreNoteSize()
         {
             if (WindowState == WindowState.Normal) return;
             WindowState = WindowState.Normal;
             CaptureGeometry();
         }
+
+        // Allow Escape to restore a maximized note after child controls handle input.
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
             if (e.Handled || e.Key != Key.Escape || WindowState != WindowState.Maximized) return;
-            RestoreNoteSize(); e.Handled = true;
+            RestoreNoteSize();
+            e.Handled = true;
         }
+
+        // Interactive title controls must keep their own mouse gestures.
         private bool CanDragTitle()
         {
             return !(TitleBox.IsMouseOver || AddButton.IsMouseOver || MenuButton.IsMouseOver || RestoreButton.IsMouseOver || DeleteButton.IsMouseOver);
         }
+
+        // Select the title so keyboard and mouse entry share the same edit state.
         internal void BeginTitleEdit()
         {
-            TitleDisplay.Visibility = Visibility.Collapsed; TitleBox.Visibility = Visibility.Visible;
-            TitleBox.Focus(); TitleBox.SelectAll();
+            TitleDisplay.Visibility = Visibility.Collapsed;
+            TitleBox.Visibility = Visibility.Visible;
+            TitleBox.Focus();
+            TitleBox.SelectAll();
         }
+
+        // Start title editing from the title display's keyboard shortcuts.
         private void EditTitleKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter && e.Key != Key.F2) return;
-            BeginTitleEdit(); e.Handled = true;
+            BeginTitleEdit();
+            e.Handled = true;
         }
+
+        // End title editing while keeping the current binding value.
         private void FinishTitleEdit()
         {
-            TitleBox.Visibility = Visibility.Collapsed; TitleDisplay.Visibility = Visibility.Visible;
+            TitleBox.Visibility = Visibility.Collapsed;
+            TitleDisplay.Visibility = Visibility.Visible;
         }
+
+        // Return focus to the body when either title-edit completion key is pressed.
+        private void FinishTitleKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter && e.Key != Key.Escape) return;
+            FinishTitleEdit();
+            Editor.Focus();
+            e.Handled = true;
+        }
+
         // UI: add localized action.
         private void Add(object sender, RoutedEventArgs e)
         {
             service.Create();
         }
+
         // UI: the X button uses the same confirmation as the delete menu.
         private void DeleteNote(object sender, RoutedEventArgs e)
         {
             Delete();
         }
+
         // UI: rebuild current note options.
         private void OpenMenu(object sender, RoutedEventArgs e)
         {
@@ -145,16 +215,24 @@ namespace StickyNote.Views
             ContextMenu.PlacementTarget = MenuButton;
             ContextMenu.IsOpen = true;
         }
+
         // UI: bind localized menu action.
         private MenuItem Item(string key, Action action)
         {
-            var item = new MenuItem { Header = Loc.Get(key) }; item.Click += (s, e) => action(); return item;
+            var item = new MenuItem
+            {
+                Header = Loc.Get(key)
+            };
+            item.Click += (s, e) => action();
+            return item;
         }
+
         // UI: assemble note commands.
         private ContextMenu BuildMenu()
         {
             var menu = new ContextMenu();
-            menu.Items.Add(Item("NewNote", () => service.Create())); menu.Items.Add(Item("Duplicate", () => service.Create(note)));
+            menu.Items.Add(Item("NewNote", () => service.Create()));
+            menu.Items.Add(Item("Duplicate", () => service.Create(note)));
             menu.Items.Add(Item("ShowAll", service.ShowAll));
             menu.Items.Add(Item("RestoreSize", RestoreNoteSize));
             menu.Items.Add(Item("Settings", () => ((App)Application.Current).ShowSettings()));
@@ -163,18 +241,21 @@ namespace StickyNote.Views
             menu.Items.Add(Item("Foreground", () => ChangeColor(note.foregroundColor, new Settings().foregroundColor, value => note.foregroundColor = value)));
             menu.Items.Add(Item("FontFamily", ChangeFont));
             var modes = ModeMenu();
-            menu.Items.Add(modes); menu.Items.Add(new Separator());
+            menu.Items.Add(modes);
+            menu.Items.Add(new Separator());
             menu.Items.Add(Item("Delete", Delete));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Exit", () => ((App)Application.Current).ExitApplication()));
             return menu;
         }
+
         // FONT: installed typefaces with a sample before applying.
         private void ChangeFont()
         {
             var selected = FontWindow.Ask(this, note.fontFamily);
             if (selected != null) note.fontFamily = selected;
         }
+
         // RGB: shared color editor.
         private void ChangeColor(string current, string defaultColor, Action<string> apply)
         {
@@ -182,10 +263,14 @@ namespace StickyNote.Views
             if (value == null) return;
             apply(value);
         }
+
         // MODE: requested mode stays checked after fallback.
         private MenuItem ModeMenu()
         {
-            var menu = new MenuItem { Header = Loc.Get("Mode") };
+            var menu = new MenuItem
+            {
+                Header = Loc.Get("Mode")
+            };
             foreach (var mode in new[] { "normal", "topmost", "desktop" })
             {
                 var item = Item(mode, () => note.displayMode = mode);
@@ -195,21 +280,34 @@ namespace StickyNote.Views
             }
             return menu;
         }
+
         // DEL: explicit confirmation.
         private void Delete()
         {
             if (MessageBox.Show(this, Loc.Get("DeleteConfirm"), Loc.Get("AppTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
             service.Delete(note);
         }
+
         // UI: Alt+F4 and taskbar close also require deletion confirmation.
-        private void OnClosing(object sender, CancelEventArgs e) { if (!destroying) { e.Cancel = true; Dispatcher.BeginInvoke(new Action(Delete)); } }
+        private void OnClosing(object sender, CancelEventArgs e)
+        {
+            if (destroying) return;
+            e.Cancel = true;
+            Dispatcher.BeginInvoke(new Action(Delete));
+        }
+
         // FREE: detach events and destroy HWND.
         public void Destroy()
         {
-            if (destroying) return; destroying = true; ready = false;
+            if (destroying) return;
+            destroying = true;
+            ready = false;
             note.PropertyChanged -= NoteChanged;
             if (desktop != null) desktop.Dispose();
-            SourceInitialized -= InitializedSource; LocationChanged -= GeometryChanged; SizeChanged -= GeometryChanged; Closing -= OnClosing;
+            SourceInitialized -= InitializedSource;
+            LocationChanged -= GeometryChanged;
+            SizeChanged -= GeometryChanged;
+            Closing -= OnClosing;
             Close();
         }
     }

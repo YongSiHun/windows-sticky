@@ -17,7 +17,9 @@ namespace StickyNote.Utilities
         internal static void Copy(string source, string destination)
         {
             using (var input = File.OpenRead(source))
+            {
                 Commit(destination, output => input.CopyTo(output), null);
+            }
         }
 
         // IO: same-dir temp, flush, replace, previous-good backup.
@@ -36,7 +38,10 @@ namespace StickyNote.Utilities
                 if (File.Exists(path)) File.Replace(temporary, path, previousPath ?? path + ".bak", true);
                 else File.Move(temporary, path);
             }
-            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            finally
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
         }
     }
 }

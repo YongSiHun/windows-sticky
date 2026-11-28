@@ -18,18 +18,34 @@ namespace StickyNote.Services
                 return null;
             }
         }
+
+        // Remove the one-time installer choice after settings are durably saved.
         internal static void ClearInstallationChoice()
         {
             using (var user = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry32))
             using (var key = user.OpenSubKey(InstallKey, true))
+            {
                 if (key != null) key.DeleteValue("InstallStartupEnabled", false);
+            }
         }
-        internal static string Command { get { return "\"" + System.Reflection.Assembly.GetExecutingAssembly().Location + "\""; } }
+
+        internal static string Command
+        {
+            get
+            {
+                return "\"" + System.Reflection.Assembly.GetExecutingAssembly().Location + "\"";
+            }
+        }
+
+        // Verify the Run entry matches this executable, including path quoting.
         public static bool IsRegistered()
         {
             using (var key = Registry.CurrentUser.OpenSubKey(Key))
+            {
                 return key != null && string.Equals(key.GetValue("StickyNote") as string, Command, StringComparison.OrdinalIgnoreCase);
+            }
         }
+
         // START: register the requested login behavior.
         public static void Apply(bool enabled)
         {

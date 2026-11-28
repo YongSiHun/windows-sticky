@@ -9,7 +9,13 @@ namespace StickyNote.Services
     internal static class UpdateService
     {
         internal const string DownloadsUrl = "https://github.com/YongSiHun/windows-sticky/actions/workflows/build.yml";
-        internal static Version Current { get { return typeof(App).Assembly.GetName().Version; } }
+        internal static Version Current
+        {
+            get
+            {
+                return typeof(App).Assembly.GetName().Version;
+            }
+        }
 
         // VER: explicit user request; bounded I/O off the dispatcher.
         internal static Task<Version> CheckAsync()
@@ -22,7 +28,8 @@ namespace StickyNote.Services
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             var request = (HttpWebRequest)WebRequest.Create(url);
-            request.Timeout = 8000; request.ReadWriteTimeout = 8000;
+            request.Timeout = 8000;
+            request.ReadWriteTimeout = 8000;
             request.UserAgent = "StickyNote/" + Current.ToString(3);
             using (var response = request.GetResponse())
             using (var reader = new StreamReader(response.GetResponseStream()))

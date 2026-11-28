@@ -8,7 +8,18 @@ namespace StickyNote.Utilities
         private static readonly ResourceManager Resources = new ResourceManager("StickyNote.Resources.Strings", typeof(Loc).Assembly);
         private static readonly ResourceManager English = new ResourceManager("StickyNote.Resources.English", typeof(Loc).Assembly);
         private static CultureInfo _culture = CultureInfo.CurrentUICulture;
-        public static CultureInfo Culture { get { return _culture; } set { _culture = value; } }
+        public static CultureInfo Culture
+        {
+            get
+            {
+                return _culture;
+            }
+            set
+            {
+                _culture = value;
+            }
+        }
+
         // I18N: lookup with key fallback.
         public static string Get(string key)
         {

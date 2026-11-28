@@ -23,7 +23,8 @@ namespace StickyNote.Tests
         {
             if (args.Length == 2 && args[0] == "--signal-instance") return SignalInstance(args[1]);
             if (args.Length == 2 && args[0] == "--exit-server") return ExitServer(args[1]);
-            root = Path.Combine(Environment.CurrentDirectory, "TestResults", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+            root = Path.Combine(Environment.CurrentDirectory, "TestResults", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
             Run("UTF-8 JSON round trip and UTC", JsonRoundTrip);
             Run("schema migration boundary rejects unknown and missing versions", SchemaBoundary);
             Run("invalid settings and note fields rejected", InvalidFields);
@@ -37,6 +38,7 @@ namespace StickyNote.Tests
             Run("offscreen and negative monitor geometry", MonitorGeometry);
             Run("debounce coalesces edits and flush uses latest", Debounce);
             Run("note create edit duplicate hide show and delete", NoteOperations);
+            Run("reloading notes releases old edit subscriptions", ReloadSubscriptions);
             Run("localized resources embedded", Localization);
             Run("native mode transitions preserve visibility opacity and parent", NativeTransitions);
             Run("single instance IPC activates first instance", InstanceActivation);
@@ -54,13 +56,17 @@ namespace StickyNote.Tests
             Run("font selection persists and old documents retain defaults", FontControls);
             Run("version checks reject malformed responses", VersionChecks);
             Run("settings expose color buttons sliders and version without language picker", SettingsControls);
-            Console.WriteLine("Passed: " + passed + ", Failed: " + failures); return failures == 0 ? 0 : 1;
+            Console.WriteLine("Passed: " + passed + ", Failed: " + failures);
+            return failures == 0 ? 0 : 1;
         }
+
         // QA: UTF-8 JSON round trip and UTC.
         private static void JsonRoundTrip()
         {
-            var data = Data("한글\nsecond line"); var copy = StorageService.ReadBackup(Json.Write(data));
-            Equal(data.notes.notes[0].content, copy.notes.notes[0].content); Equal(data.notes.notes[0].id, copy.notes.notes[0].id);
+            var data = Data("한글\nsecond line");
+            var copy = StorageService.ReadBackup(Json.Write(data));
+            Equal(data.notes.notes[0].content, copy.notes.notes[0].content);
+            Equal(data.notes.notes[0].id, copy.notes.notes[0].id);
         }
 
         // QA: schema migration boundary rejects unknown and missing versions.
@@ -75,11 +81,24 @@ namespace StickyNote.Tests
         // QA: invalid settings and note fields rejected.
         private static void InvalidFields()
         {
-            Throws(() => Validation.Settings(new Settings { opacity = double.NaN }));
-            Throws(() => Validation.Settings(new Settings { backgroundColor = "red" }));
-            Throws(() => Validation.Settings(new Settings { displayMode = "invalid" }));
-            var data = Data("x"); data.notes.notes.Add(data.notes.notes[0].Clone()); Throws(() => Validation.Notes(data.notes));
-            data = Data("x"); data.notes.notes[0].width = -1; Throws(() => Validation.Notes(data.notes));
+            Throws(() => Validation.Settings(new Settings
+            {
+                opacity = double.NaN
+            }));
+            Throws(() => Validation.Settings(new Settings
+            {
+                backgroundColor = "red"
+            }));
+            Throws(() => Validation.Settings(new Settings
+            {
+                displayMode = "invalid"
+            }));
+            var data = Data("x");
+            data.notes.notes.Add(data.notes.notes[0].Clone());
+            Throws(() => Validation.Notes(data.notes));
+            data = Data("x");
+            data.notes.notes[0].width = -1;
+            Throws(() => Validation.Notes(data.notes));
         }
 
         // QA: atomic save retains previous-good data.
@@ -87,7 +106,8 @@ namespace StickyNote.Tests
         {
             using (var s = Store("atomic"))
             {
-                s.SaveAsync(Data("old"), 1).Wait(); s.SaveAsync(Data("new"), 2).Wait();
+                s.SaveAsync(Data("old"), 1).Wait();
+                s.SaveAsync(Data("new"), 2).Wait();
                 Equal("new", s.Load().notes.notes[0].content);
                 Equal("old", Json.Read<NoteDocument>(File.ReadAllText(Path.Combine(s.Root, "notes.json.bak"))).notes[0].content);
                 Equal(0, Directory.GetFiles(s.Root, "*.tmp").Length);
@@ -99,9 +119,11 @@ namespace StickyNote.Tests
         {
             using (var s = Store("locked"))
             {
-                s.SaveAsync(Data("safe"), 1).Wait(); var path = Path.Combine(s.Root, "notes.json");
+                s.SaveAsync(Data("safe"), 1).Wait();
+                var path = Path.Combine(s.Root, "notes.json");
                 using (var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) Throws(() => s.SaveAsync(Data("lost"), 2).Wait());
-                Equal("safe", s.Load().notes.notes[0].content); Equal(0, Directory.GetFiles(s.Root, "*.tmp").Length);
+                Equal("safe", s.Load().notes.notes[0].content);
+                Equal(0, Directory.GetFiles(s.Root, "*.tmp").Length);
             }
         }
 
@@ -110,9 +132,12 @@ namespace StickyNote.Tests
         {
             using (var s = Store("corrupt"))
             {
-                s.SaveAsync(Data("previous"), 1).Wait(); s.SaveAsync(Data("latest"), 2).Wait();
+                s.SaveAsync(Data("previous"), 1).Wait();
+                s.SaveAsync(Data("latest"), 2).Wait();
                 File.WriteAllText(Path.Combine(s.Root, "notes.json"), "broken");
-                Equal("previous", s.Load().notes.notes[0].content); Equal(true, s.Recovered); Equal(false, s.RecoveryBlocked);
+                Equal("previous", s.Load().notes.notes[0].content);
+                Equal(true, s.Recovered);
+                Equal(false, s.RecoveryBlocked);
                 Equal(1, Directory.GetFiles(s.Root, "*.corrupt-*").Length);
                 Equal("previous", Json.Read<NoteDocument>(File.ReadAllText(Path.Combine(s.Root, "notes.json.bak"))).notes[0].content);
             }
@@ -123,13 +148,20 @@ namespace StickyNote.Tests
         {
             using (var s = Store("blocked"))
             {
-                var path = Path.Combine(s.Root, "notes.json"); File.WriteAllText(path, "broken"); s.Load();
-                Equal(true, s.RecoveryBlocked); Throws(() => s.SaveAsync(Data("overwrite"), 1).Wait()); Equal("broken", File.ReadAllText(path));
+                var path = Path.Combine(s.Root, "notes.json");
+                File.WriteAllText(path, "broken");
+                s.Load();
+                Equal(true, s.RecoveryBlocked);
+                Throws(() => s.SaveAsync(Data("overwrite"), 1).Wait());
+                Equal("broken", File.ReadAllText(path));
             }
             using (var s = Store("future"))
             {
-                s.SaveAsync(Data("old"), 1).Wait(); s.SaveAsync(Data("old2"), 2).Wait();
-                File.WriteAllText(Path.Combine(s.Root, "notes.json"), "{\"schemaVersion\":99,\"notes\":[]}"); s.Load(); Equal(true, s.RecoveryBlocked);
+                s.SaveAsync(Data("old"), 1).Wait();
+                s.SaveAsync(Data("old2"), 2).Wait();
+                File.WriteAllText(Path.Combine(s.Root, "notes.json"), "{\"schemaVersion\":99,\"notes\":[]}");
+                s.Load();
+                Equal(true, s.RecoveryBlocked);
             }
         }
 
@@ -138,7 +170,8 @@ namespace StickyNote.Tests
         {
             using (var s = Store("concurrent"))
             {
-                var tasks = Enumerable.Range(1, 40).Reverse().Select(i => s.SaveAsync(Data(i.ToString()), i)).ToArray(); Task.WaitAll(tasks);
+                var tasks = Enumerable.Range(1, 40).Reverse().Select(i => s.SaveAsync(Data(i.ToString()), i)).ToArray();
+                Task.WaitAll(tasks);
                 Equal("40", s.Load().notes.notes[0].content);
             }
         }
@@ -148,11 +181,17 @@ namespace StickyNote.Tests
         {
             using (var s = Store("restore"))
             {
-                var old = Data("before"); s.SaveAsync(old, 1).Wait(); var backups = new BackupService(s);
-                var path = Path.Combine(s.Root, "export.json"); backups.Export(path, Data("after"));
-                s.RestoreAsync(backups.Import(path), old, 2).Wait(); Equal("after", s.Load().notes.notes[0].content);
+                var old = Data("before");
+                s.SaveAsync(old, 1).Wait();
+                var backups = new BackupService(s);
+                var path = Path.Combine(s.Root, "export.json");
+                backups.Export(path, Data("after"));
+                s.RestoreAsync(backups.Import(path), old, 2).Wait();
+                Equal("after", s.Load().notes.notes[0].content);
                 Equal(1, Directory.GetFiles(Path.Combine(s.Root, "backups"), "*.json").Length);
-                File.WriteAllText(path, "bad"); Throws(() => backups.Import(path)); Equal("after", s.Load().notes.notes[0].content);
+                File.WriteAllText(path, "bad");
+                Throws(() => backups.Import(path));
+                Equal("after", s.Load().notes.notes[0].content);
                 Throws(() => backups.Export(Path.Combine(s.Root, "notes.json"), old));
                 var fixedTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
                 backups = new BackupService(s, () => fixedTime);
@@ -169,8 +208,10 @@ namespace StickyNote.Tests
         {
             using (var s = Store("journal"))
             {
-                s.SaveAsync(Data("old"), 1).Wait(); AtomicFile.Write(Path.Combine(s.Root, "restore.pending.json"), Json.Write(Data("replayed")));
-                Equal("replayed", s.Load().notes.notes[0].content); Equal(false, File.Exists(Path.Combine(s.Root, "restore.pending.json")));
+                s.SaveAsync(Data("old"), 1).Wait();
+                AtomicFile.Write(Path.Combine(s.Root, "restore.pending.json"), Json.Write(Data("replayed")));
+                Equal("replayed", s.Load().notes.notes[0].content);
+                Equal(false, File.Exists(Path.Combine(s.Root, "restore.pending.json")));
             }
         }
 
@@ -179,8 +220,10 @@ namespace StickyNote.Tests
         {
             var screens = new[] { new Rect(-1920, 0, 1920, 1040), new Rect(0, 0, 1920, 1040) };
             Equal(new Rect(-1800, 100, 250, 300), ScreenService.Clamp(new Rect(-1800, 100, 250, 300), screens));
-            var result = ScreenService.Clamp(new Rect(9000, -5000, 500, 400), screens); Equal(true, screens.Any(r => r.Contains(result)));
-            result = ScreenService.Clamp(new Rect(100, 100, 9000, 9000), screens); Equal(true, screens.Any(r => r.Contains(result)));
+            var result = ScreenService.Clamp(new Rect(9000, -5000, 500, 400), screens);
+            Equal(true, screens.Any(r => r.Contains(result)));
+            result = ScreenService.Clamp(new Rect(100, 100, 9000, 9000), screens);
+            Equal(true, screens.Any(r => r.Contains(result)));
         }
 
         // QA: debounce coalesces edits and flush uses latest.
@@ -188,12 +231,29 @@ namespace StickyNote.Tests
         {
             using (var s = Store("debounce"))
             {
-                int snapshots = 0; var data = Data("first"); Exception failure = null;
-                using (var autosave = new AutosaveService(s, () => { snapshots++; return Json.Copy(data); }, e => failure = e, 80))
+                int snapshots = 0;
+                var data = Data("first");
+                Exception failure = null;
+                using (var autosave = new AutosaveService(s, () =>
                 {
-                    for (int i = 0; i < 20; i++) { data.notes.notes[0].content = i.ToString(); autosave.Request(); }
-                    Pump(350); Equal(1, snapshots); Equal(null, failure); Equal("19", s.Load().notes.notes[0].content);
-                    data.notes.notes[0].content = "flush"; autosave.Request(); var task = autosave.FlushAsync(); Await(task); Equal("flush", s.Load().notes.notes[0].content);
+                    snapshots++;
+                    return Json.Copy(data);
+                }, e => failure = e, 80))
+                {
+                    for (int i = 0; i < 20; i++)
+                    {
+                        data.notes.notes[0].content = i.ToString();
+                        autosave.Request();
+                    }
+                    Pump(350);
+                    Equal(1, snapshots);
+                    Equal(null, failure);
+                    Equal("19", s.Load().notes.notes[0].content);
+                    data.notes.notes[0].content = "flush";
+                    autosave.Request();
+                    var task = autosave.FlushAsync();
+                    Await(task);
+                    Equal("flush", s.Load().notes.notes[0].content);
                 }
             }
         }
@@ -201,20 +261,58 @@ namespace StickyNote.Tests
         // QA: note create edit duplicate hide show and delete.
         private static void NoteOperations()
         {
-            int changes = 0; var log = new LogService(Path.Combine(root, "ui"));
-            using (var service = new NoteService(new Settings { displayMode = "normal" }, () => changes++, log))
+            int changes = 0;
+            var log = new LogService(Path.Combine(root, "ui"));
+            using (var service = new NoteService(new Settings
             {
-                var n = service.Create(); n.content = "searchable"; var copy = service.Create(n);
-                Equal(false, n.id == copy.id); Equal(n.content, copy.content); service.Hide(n); Equal(false, n.isVisible); service.Show(n); Equal(true, n.isVisible);
-                service.Delete(copy); Equal(1, service.Notes.Count); Equal(true, changes > 4);
+                displayMode = "normal"
+            }, () => changes++, log))
+            {
+                var n = service.Create();
+                n.content = "searchable";
+                var copy = service.Create(n);
+                Equal(false, n.id == copy.id);
+                Equal(n.content, copy.content);
+                service.Hide(n);
+                Equal(false, n.isVisible);
+                service.Show(n);
+                Equal(true, n.isVisible);
+                service.Delete(copy);
+                Equal(1, service.Notes.Count);
+                Equal(true, changes > 4);
+            }
+        }
+
+        // Reloading must detach old notes and subscribe to replacements exactly once.
+        private static void ReloadSubscriptions()
+        {
+            int changes = 0;
+            var log = new LogService(Path.Combine(root, "reload"));
+            using (var service = new NoteService(new Settings(), () => changes++, log))
+            {
+                var original = new Note { isVisible = false };
+                var replacement = new Note { isVisible = false };
+                service.Load(new[] { original });
+                Equal(0, changes);
+                original.content = "first edit";
+                Equal(1, changes);
+                service.Load(new[] { replacement });
+                Equal(1, changes);
+                original.content = "detached edit";
+                Equal(1, changes);
+                replacement.content = "tracked edit";
+                Equal(2, changes);
+                Equal(replacement, service.Notes.Single());
             }
         }
 
         // QA: localized resources embedded.
         private static void Localization()
         {
-            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("en"); Equal("New note", Loc.Get("NewNote"));
-            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("ko"); Equal("새 메모", Loc.Get("NewNote"));
+            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("en");
+            Equal("New note", Loc.Get("NewNote"));
+            Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("ko");
+            Equal("새 메모", Loc.Get("NewNote"));
         }
 
         // QA: native mode transitions preserve visibility opacity and parent.
@@ -223,21 +321,33 @@ namespace StickyNote.Tests
             var log = new LogService(Path.Combine(root, "modes"));
             using (var service = new NoteService(new Settings(), () => { }, log))
             {
-                var note = new Note { displayMode = "normal" };
+                var note = new Note
+                {
+                    displayMode = "normal"
+                };
                 var window = new StickyNote.Views.NoteWindow(note, service, log);
                 try
                 {
-                    window.Show(); Pump(30);
+                    window.Show();
+                    Pump(30);
                     var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
                     var parent = StickyNote.Interop.NativeMethods.GetParent(handle);
-                    note.opacity = .7; note.displayMode = "topmost"; Equal(true, window.Topmost);
+                    note.opacity = .7;
+                    note.displayMode = "topmost";
+                    Equal(true, window.Topmost);
                     Equal(true, StickyNote.Interop.NativeMethods.IsWindowVisible(handle));
-                    note.displayMode = "desktop"; Equal("desktop", note.displayMode);
+                    note.displayMode = "desktop";
+                    Equal("desktop", note.displayMode);
                     Equal(parent, StickyNote.Interop.NativeMethods.GetParent(handle));
-                    note.displayMode = "normal"; Equal(false, window.Topmost); Equal(.7, window.Opacity);
+                    note.displayMode = "normal";
+                    Equal(false, window.Topmost);
+                    Equal(.7, window.Opacity);
                     Equal(true, StickyNote.Interop.NativeMethods.IsWindowVisible(handle));
                 }
-                finally { window.Destroy(); }
+                finally
+                {
+                    window.Destroy();
+                }
             }
         }
 
@@ -253,11 +363,14 @@ namespace StickyNote.Tests
                     first.Listen(() => activated.Set(), new LogService(Path.Combine(root, "ipc")));
                     using (var second = new SingleInstanceService(scope))
                     {
-                        Equal(false, second.IsFirst); Equal(true, second.Signal()); Equal(true, activated.WaitOne(3000));
+                        Equal(false, second.IsFirst);
+                        Equal(true, second.Signal());
+                        Equal(true, activated.WaitOne(3000));
                     }
                 }
             }
         }
+
         // QA: success must wait for the callback, even when it is delayed.
         private static void InstanceAcknowledgment()
         {
@@ -267,17 +380,26 @@ namespace StickyNote.Tests
             using (var first = new SingleInstanceService(scope))
             using (var second = new SingleInstanceService(scope))
             {
-                first.Listen(() => { entered.Set(); release.WaitOne(5000); }, new LogService(Path.Combine(root, "ipc-ack")));
+                first.Listen(() =>
+                {
+                    entered.Set();
+                    release.WaitOne(5000);
+                }, new LogService(Path.Combine(root, "ipc-ack")));
                 var signal = Task.Run(() => second.Signal());
                 try
                 {
                     Equal(true, entered.WaitOne(3000));
                     Equal(false, signal.IsCompleted);
                 }
-                finally { release.Set(); signal.Wait(5000); }
+                finally
+                {
+                    release.Set();
+                    signal.Wait(5000);
+                }
                 Equal(true, signal.Result);
             }
         }
+
         // QA: exercise the real process boundary and listener re-arming.
         private static void InstanceProcesses()
         {
@@ -293,6 +415,7 @@ namespace StickyNote.Tests
                 }
             }
         }
+
         // QA: a client that leaves before acknowledgment cannot disable IPC.
         private static void InstanceTimeoutRecovery()
         {
@@ -302,7 +425,11 @@ namespace StickyNote.Tests
             using (var first = new SingleInstanceService(scope))
             using (var second = new SingleInstanceService(scope))
             {
-                first.Listen(() => { entered.Set(); release.WaitOne(10000); }, new LogService(Path.Combine(root, "ipc-timeout")));
+                first.Listen(() =>
+                {
+                    entered.Set();
+                    release.WaitOne(10000);
+                }, new LogService(Path.Combine(root, "ipc-timeout")));
                 var signal = Task.Run(() => second.Signal());
                 try
                 {
@@ -310,10 +437,15 @@ namespace StickyNote.Tests
                     Equal(true, signal.Wait(5000));
                     Equal(false, signal.Result);
                 }
-                finally { release.Set(); signal.Wait(5000); }
+                finally
+                {
+                    release.Set();
+                    signal.Wait(5000);
+                }
                 Equal(true, second.Signal());
             }
         }
+
         // QA: only the isolated test child can be terminated on timeout.
         private static void RunSignalProcess(string scope)
         {
@@ -324,12 +456,15 @@ namespace StickyNote.Tests
             {
                 if (!child.WaitForExit(10000))
                 {
-                    child.Kill(); child.WaitForExit();
+                    child.Kill();
+                    child.WaitForExit();
                     throw new TimeoutException("IPC test child did not exit.");
                 }
                 Equal(0, child.ExitCode);
             }
         }
+
+        // Simulate a final save in an isolated process before releasing the instance.
         private static int ExitServer(string scope)
         {
             using (var instance = new SingleInstanceService(scope))
@@ -339,10 +474,13 @@ namespace StickyNote.Tests
                 instance.Listen(() => { }, new LogService(Path.Combine(Environment.CurrentDirectory, "TestResults", scope)), () => requested.Set());
                 ready.Set();
                 if (!requested.WaitOne(10000)) return 2;
-                Thread.Sleep(150); // Simulate final save before releasing process resources.
+                Thread.Sleep(150);
+                // Simulate final save before releasing process resources.
             }
             return 0;
         }
+
+        // Verify uninstall waits for the isolated application's graceful shutdown.
         private static void UninstallExit()
         {
             var scope = Guid.NewGuid().ToString("N");
@@ -350,7 +488,8 @@ namespace StickyNote.Tests
             using (var ready = new EventWaitHandle(false, EventResetMode.ManualReset, @"Local\" + scope))
             {
                 var start = new System.Diagnostics.ProcessStartInfo(typeof(Program).Assembly.Location, "--exit-server " + scope);
-                start.UseShellExecute = false; start.CreateNoWindow = true;
+                start.UseShellExecute = false;
+                start.CreateNoWindow = true;
                 using (var child = System.Diagnostics.Process.Start(start))
                 {
                     try
@@ -361,9 +500,17 @@ namespace StickyNote.Tests
                             Equal(false, client.IsFirst);
                             Equal(true, client.RequestExit());
                         }
-                        Equal(true, child.HasExited); Equal(0, child.ExitCode);
+                        Equal(true, child.HasExited);
+                        Equal(0, child.ExitCode);
                     }
-                    finally { if (!child.HasExited) { child.Kill(); child.WaitForExit(); } }
+                    finally
+                    {
+                        if (!child.HasExited)
+                        {
+                            child.Kill();
+                            child.WaitForExit();
+                        }
+                    }
                 }
             }
         }
@@ -377,13 +524,17 @@ namespace StickyNote.Tests
                 return second.Signal() ? 0 : 3;
             }
         }
+
         // QA: restore must not transcode corrupt originals.
         private static void RestoreCorruptBytes()
         {
             using (var storage = Store("binary-corruption"))
             {
                 var path = Path.Combine(storage.Root, "notes.json");
-                var corrupt = new byte[] { 0xff, 0xfe, 0x00, 0xd8, 0x81 };
+                var corrupt = new byte[]
+                {
+                    0xff, 0xfe, 0x00, 0xd8, 0x81
+                };
                 File.WriteAllBytes(path, corrupt);
                 storage.Load();
                 Equal(true, storage.RecoveryBlocked);
@@ -393,13 +544,19 @@ namespace StickyNote.Tests
                 Equal("restored", storage.Load().notes.notes[0].content);
             }
         }
+
         // QA: clones retain data without sharing events or UI state.
         private static void DetachedSnapshots()
         {
             int changes = 0;
             using (var service = new NoteService(new Settings(), () => changes++, new LogService(Path.Combine(root, "snapshot"))))
             {
-                var note = new Note { content = "source", isVisible = false, monitorDeviceName = "monitor" };
+                var note = new Note
+                {
+                    content = "source",
+                    isVisible = false,
+                    monitorDeviceName = "monitor"
+                };
                 service.Load(new[] { note });
                 var snapshot = service.Snapshot();
                 var copy = snapshot.notes.notes.Single();
@@ -412,11 +569,15 @@ namespace StickyNote.Tests
                 Throws(() => Task.Run(() => service.Snapshot()).GetAwaiter().GetResult());
             }
         }
+
         // QA: new defaults must not overwrite a persisted opt-out.
         private static void StartupDefaults()
         {
             Equal(true, new Settings().startWithWindows);
-            var optedOut = Json.Read<Settings>(Json.Write(new Settings { startWithWindows = false }));
+            var optedOut = Json.Read<Settings>(Json.Write(new Settings
+            {
+                startWithWindows = false
+            }));
             Equal(false, optedOut.startWithWindows);
             App.ApplyInstallationStartup(optedOut, true);
             Equal(true, Json.Read<Settings>(Json.Write(optedOut)).startWithWindows);
@@ -436,8 +597,13 @@ namespace StickyNote.Tests
                 Loc.Culture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
                 Equal("New note", Loc.Get("NewNote"));
             }
-            finally { Loc.Culture = previous; }
+            finally
+            {
+                Loc.Culture = previous;
+            }
         }
+
+        // Verify factory defaults and persisted display modes survive loading and copying.
         private static void DisplayModeDefaults()
         {
             Equal("desktop", new Settings().displayMode);
@@ -456,57 +622,93 @@ namespace StickyNote.Tests
             Equal("topmost", saved.settings.displayMode);
             Equal("desktop", saved.notes.notes[0].displayMode);
         }
+
         // QA: maximize, restore through the visible button, then resize again.
         private static void RestoreNoteBounds()
         {
             var log = new LogService(Path.Combine(root, "restore-bounds"));
-            using (var service = new NoteService(new Settings { displayMode = "normal" }, () => { }, log))
+            using (var service = new NoteService(new Settings
             {
-                var note = new Note { displayMode = "normal", width = 340, height = 380 };
+                displayMode = "normal"
+            }, () => { }, log))
+            {
+                var note = new Note
+                {
+                    displayMode = "normal",
+                    width = 340,
+                    height = 380
+                };
                 var window = new StickyNote.Views.NoteWindow(note, service, log);
                 try
                 {
-                    window.Show(); Pump(30);
+                    window.Show();
+                    Pump(30);
                     var original = new Rect(note.x, note.y, note.width, note.height);
                     var button = (System.Windows.Controls.Button)window.FindName("RestoreButton");
                     Equal(Visibility.Collapsed, button.Visibility);
-                    window.WindowState = WindowState.Maximized; Pump(30);
+                    window.WindowState = WindowState.Maximized;
+                    Pump(30);
                     Equal(Visibility.Visible, button.Visibility);
-                    window.Reposition(); Pump(30);
+                    window.Reposition();
+                    Pump(30);
                     Equal(original, new Rect(note.x, note.y, note.width, note.height));
-                    button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent)); Pump(30);
+                    button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    Pump(30);
                     Equal(WindowState.Normal, window.WindowState);
                     Equal(Visibility.Collapsed, button.Visibility);
                     Equal(original, new Rect(window.Left, window.Top, window.Width, window.Height));
-                    window.Width = 360; window.Height = 400; Pump(30);
-                    Equal(360d, note.width); Equal(400d, note.height);
-                    window.WindowState = WindowState.Maximized; Pump(30);
+                    window.Width = 360;
+                    window.Height = 400;
+                    Pump(30);
+                    Equal(360d, note.width);
+                    Equal(400d, note.height);
+                    window.WindowState = WindowState.Maximized;
+                    Pump(30);
                     window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>()
-                        .Single(item => Equals(item.Header, Loc.Get("RestoreSize")))
-                        .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
-                    Pump(30); Equal(WindowState.Normal, window.WindowState);
-                    window.WindowState = WindowState.Maximized; Pump(30);
+                    .Single(item => Equals(item.Header, Loc.Get("RestoreSize")))
+                    .RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+                    Pump(30);
+                    Equal(WindowState.Normal, window.WindowState);
+                    window.WindowState = WindowState.Maximized;
+                    Pump(30);
                     var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
                     editor.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
-                        PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Escape)
-                        { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
-                    Pump(30); Equal(WindowState.Normal, window.WindowState);
-                    Equal(360d, note.width); Equal(400d, note.height);
+                    PresentationSource.FromVisual(window), 0, System.Windows.Input.Key.Escape)
+                    {
+                        RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent
+                    });
+                    Pump(30);
+                    Equal(WindowState.Normal, window.WindowState);
+                    Equal(360d, note.width);
+                    Equal(400d, note.height);
                     Equal("normal", note.displayMode);
                 }
-                finally { window.Destroy(); }
+                finally
+                {
+                    window.Destroy();
+                }
             }
         }
+
         // QA: inline controls bind both ways and survive snapshot capture.
         private static void NoteControls()
         {
-            using (var service = new NoteService(new Settings { displayMode = "normal" }, () => { }, new LogService(Path.Combine(root, "controls"))))
+            using (var service = new NoteService(new Settings
             {
-                var note = new Note { title = "Before", displayMode = "normal", isVisible = false };
+                displayMode = "normal"
+            }, () => { }, new LogService(Path.Combine(root, "controls"))))
+            {
+                var note = new Note
+                {
+                    title = "Before",
+                    displayMode = "normal",
+                    isVisible = false
+                };
                 service.Load(new[] { note });
                 TestNoteWindow(service, note);
             }
         }
+
         // QA: interact with WPF controls, including removed status/menu labels.
         private static void TestNoteWindow(NoteService service, Note note)
         {
@@ -516,27 +718,35 @@ namespace StickyNote.Tests
                 var textStyle = new Style(typeof(System.Windows.Controls.TextBox));
                 textStyle.Setters.Add(new Setter(System.Windows.Controls.Control.VerticalContentAlignmentProperty, VerticalAlignment.Center));
                 window.Resources.Add(typeof(System.Windows.Controls.TextBox), textStyle);
-                window.Show(); Pump(30);
+                window.Show();
+                Pump(30);
                 var editor = (System.Windows.Controls.TextBox)window.FindName("Editor");
                 var title = (System.Windows.Controls.TextBox)window.FindName("TitleBox");
                 Equal(Visibility.Collapsed, title.Visibility);
                 var titleDisplay = (System.Windows.Controls.TextBlock)window.FindName("TitleDisplay");
                 Equal(Visibility.Visible, titleDisplay.Visibility);
                 Equal(System.Windows.Input.Cursors.Arrow, ((System.Windows.Controls.Grid)window.FindName("TitleBar")).Cursor);
-                window.BeginTitleEdit(); Pump(10);
-                Equal(Visibility.Visible, title.Visibility); Equal(Visibility.Collapsed, titleDisplay.Visibility);
-                editor.Focus(); Pump(10);
-                Equal(Visibility.Collapsed, title.Visibility); Equal(Visibility.Visible, titleDisplay.Visibility);
+                window.BeginTitleEdit();
+                Pump(10);
+                Equal(Visibility.Visible, title.Visibility);
+                Equal(Visibility.Collapsed, titleDisplay.Visibility);
+                editor.Focus();
+                Pump(10);
+                Equal(Visibility.Collapsed, title.Visibility);
+                Equal(Visibility.Visible, titleDisplay.Visibility);
                 Equal(VerticalAlignment.Top, editor.VerticalContentAlignment);
                 Equal(TextAlignment.Left, editor.TextAlignment);
                 editor.Text = "왼쪽 위에서 입력합니다.\n두 번째 줄입니다.";
                 title.Text = "After";
                 var opacitySlider = (System.Windows.Controls.Slider)window.FindName("OpacityGauge");
-                Equal(.01, opacitySlider.TickFrequency); Equal(.01, opacitySlider.SmallChange);
+                Equal(.01, opacitySlider.TickFrequency);
+                Equal(.01, opacitySlider.SmallChange);
                 opacitySlider.Value = .57;
                 ((System.Windows.Controls.Slider)window.FindName("FontGauge")).Value = 24;
                 Pump(30);
-                Equal("After", note.title); Equal(.57, note.opacity); Equal(24d, note.fontSize);
+                Equal("After", note.title);
+                Equal(.57, note.opacity);
+                Equal(24d, note.fontSize);
                 Equal("After", titleDisplay.Text);
                 Equal(null, window.FindName("ModeStatus"));
                 var headers = window.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(item => item.Header).ToArray();
@@ -548,13 +758,19 @@ namespace StickyNote.Tests
                 Equal(Loc.Get("FontSizeShort"), ((System.Windows.Documents.Run)window.FindName("FontLabel")).Text);
                 Equal(Loc.Get("Delete"), ((System.Windows.Controls.Button)window.FindName("DeleteButton")).ToolTip);
                 Equal(false, window.ShowInTaskbar);
-                note.fontFamily = "Arial"; Pump(20); Equal("Arial", editor.FontFamily.Source);
+                note.fontFamily = "Arial";
+                Pump(20);
+                Equal("Arial", editor.FontFamily.Source);
                 Equal(false, headers.Contains("Rename"));
                 Equal("After", service.Snapshot().notes.notes.Single().title);
                 SavePreview(window, "note-preview.png");
             }
-            finally { window.Destroy(); }
+            finally
+            {
+                window.Destroy();
+            }
         }
+
         // QA: integer channel sliders produce the matching HEX selection.
         private static void ColorControls()
         {
@@ -565,12 +781,17 @@ namespace StickyNote.Tests
                 var panel = (System.Windows.Controls.StackPanel)((System.Windows.Controls.ScrollViewer)dialog.Content).Content;
                 var sliders = panel.Children.OfType<System.Windows.Controls.Slider>().ToArray();
                 Equal(4, sliders.Length);
-                sliders[1].Value = 255; sliders[2].Value = 0; sliders[3].Value = 128;
+                sliders[1].Value = 255;
+                sliders[2].Value = 0;
+                sliders[3].Value = 128;
                 Equal("#FF0080", dialog.SelectedColor);
                 sliders[0].Value = 120;
-                dialog.SelectAt(1, 0); Equal("#00FF00", dialog.SelectedColor);
-                dialog.SelectAt(0, 0); Equal("#FFFFFF", dialog.SelectedColor);
-                dialog.SelectAt(2, 2); Equal("#000000", dialog.SelectedColor);
+                dialog.SelectAt(1, 0);
+                Equal("#00FF00", dialog.SelectedColor);
+                dialog.SelectAt(0, 0);
+                Equal("#FFFFFF", dialog.SelectedColor);
+                dialog.SelectAt(2, 2);
+                Equal("#000000", dialog.SelectedColor);
                 var palette = panel.Children.OfType<System.Windows.Controls.Primitives.UniformGrid>().Single();
                 Equal(32, palette.Children.Count);
                 var swatch = (System.Windows.Controls.Button)palette.Children[0];
@@ -580,10 +801,14 @@ namespace StickyNote.Tests
                 var reset = buttons.Children.OfType<System.Windows.Controls.Button>().Single(button => button.Name == "ResetColorButton");
                 reset.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 Equal(new Settings().backgroundColor, dialog.SelectedColor);
-                dialog.Show(); Pump(30);
+                dialog.Show();
+                Pump(30);
                 SavePreview(dialog, "color-preview.png");
             }
-            finally { dialog.Close(); }
+            finally
+            {
+                dialog.Close();
+            }
             var foreground = new StickyNote.Views.ColorWindow("#FFFFFF", new Settings().foregroundColor);
             try
             {
@@ -592,28 +817,47 @@ namespace StickyNote.Tests
                 buttons.Children.OfType<System.Windows.Controls.Button>().Single(button => button.Name == "ResetColorButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 Equal(new Settings().foregroundColor, foreground.SelectedColor);
             }
-            finally { foreground.Close(); }
+            finally
+            {
+                foreground.Close();
+            }
         }
+
         // QA: fonts are editable, cloned, backed up and optional in existing schema 1 data.
         private static void FontControls()
         {
-            var data = Data("font"); data.notes.notes[0].fontFamily = "Arial"; data.settings.fontFamily = "Consolas";
+            var data = Data("font");
+            data.notes.notes[0].fontFamily = "Arial";
+            data.settings.fontFamily = "Consolas";
             var copy = StorageService.ReadBackup(Json.Write(data));
-            Equal("Arial", copy.notes.notes[0].Clone().fontFamily); Equal("Consolas", copy.settings.fontFamily);
+            Equal("Arial", copy.notes.notes[0].Clone().fontFamily);
+            Equal("Consolas", copy.settings.fontFamily);
             var legacy = Json.Write(Data("old")).Replace("\"fontFamily\":\"Segoe UI\",", "");
             var old = StorageService.ReadBackup(legacy);
-            Equal("Segoe UI", old.notes.notes[0].fontFamily); Equal("Segoe UI", old.settings.fontFamily);
-            Equal("desktop", new Settings().displayMode); Equal("desktop", new Note().displayMode);
-            Throws(() => Validation.Settings(new Settings { fontFamily = null }));
+            Equal("Segoe UI", old.notes.notes[0].fontFamily);
+            Equal("Segoe UI", old.settings.fontFamily);
+            Equal("desktop", new Settings().displayMode);
+            Equal("desktop", new Note().displayMode);
+            Throws(() => Validation.Settings(new Settings
+            {
+                fontFamily = null
+            }));
             var dialog = new StickyNote.Views.FontWindow("Segoe UI");
             try
             {
                 dialog.FontChoice.SelectedItem = "Arial";
-                Equal("Arial", dialog.SelectedFont); Equal("Arial", dialog.Preview.FontFamily.Source);
-                dialog.Show(); Pump(20); SavePreview(dialog, "font-preview.png");
+                Equal("Arial", dialog.SelectedFont);
+                Equal("Arial", dialog.Preview.FontFamily.Source);
+                dialog.Show();
+                Pump(20);
+                SavePreview(dialog, "font-preview.png");
             }
-            finally { dialog.Close(); }
+            finally
+            {
+                dialog.Close();
+            }
         }
+
         // QA: compare version numbers; never accept arbitrary response content.
         private static void VersionChecks()
         {
@@ -624,6 +868,7 @@ namespace StickyNote.Tests
             Throws(() => UpdateService.ParseVersion("1.2.3.4"));
             Throws(() => UpdateService.ParseVersion(null));
         }
+
         // QA: render isolated test windows without capturing the user's desktop.
         private static void SavePreview(Window window, string name)
         {
@@ -640,20 +885,39 @@ namespace StickyNote.Tests
             var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
             encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
             var path = Path.Combine(root, name);
-            using (var stream = new FileStream(path + ".tmp", FileMode.CreateNew)) { encoder.Save(stream); stream.Flush(true); }
+            using (var stream = new FileStream(path + ".tmp", FileMode.CreateNew))
+            {
+                encoder.Save(stream);
+                stream.Flush(true);
+            }
             File.Move(path + ".tmp", path);
         }
+
         // QA: inspect settings and launch behavior without starting storage, tray or registry code.
         private static void SettingsControls()
         {
-            var app = new TestApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            using (var service = new NoteService(new Settings { normalModeDefaultApplied = true, opacity = .81, backgroundColor = "#112233", foregroundColor = "#FFFFFF", fontFamily = "Arial" }, () => { }, new LogService(Path.Combine(root, "settings-ui"))))
+            var app = new TestApplication
             {
-                typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[] { service });
+                ShutdownMode = ShutdownMode.OnExplicitShutdown
+            };
+            using (var service = new NoteService(new Settings
+            {
+                normalModeDefaultApplied = true,
+                opacity = .81,
+                backgroundColor = "#112233",
+                foregroundColor = "#FFFFFF",
+                fontFamily = "Arial"
+            }, () => { }, new LogService(Path.Combine(root, "settings-ui"))))
+            {
+                typeof(App).GetProperty("Notes").GetSetMethod(true).Invoke(app, new object[]
+                {
+                    service
+                });
                 var window = new StickyNote.Views.SettingsWindow(app);
                 try
                 {
-                    window.Show(); Pump(30);
+                    window.Show();
+                    Pump(30);
                     Equal(false, window.ShowInTaskbar);
                     Equal(true, ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked);
                     Equal(null, window.FindName("LanguageChoice"));
@@ -662,65 +926,133 @@ namespace StickyNote.Tests
                     Equal(true, window.FindName("ForegroundButton") is System.Windows.Controls.Button);
                     Equal(true, window.FindName("FontInput") is System.Windows.Controls.Slider);
                     var opacitySlider = (System.Windows.Controls.Slider)window.FindName("OpacityInput");
-                    Equal(.01, opacitySlider.TickFrequency); Equal(.01, opacitySlider.SmallChange);
+                    Equal(.01, opacitySlider.TickFrequency);
+                    Equal(.01, opacitySlider.SmallChange);
                     opacitySlider.Value = .57;
                     var captured = window.CaptureSettings();
-                    Equal(.57, captured.opacity); Equal(true, captured.normalModeDefaultApplied);
+                    Equal(.57, captured.opacity);
+                    Equal(true, captured.normalModeDefaultApplied);
                     Equal("desktop", captured.displayMode);
                     ((System.Windows.Controls.CheckBox)window.FindName("Startup")).IsChecked = false;
                     ((System.Windows.Controls.Slider)window.FindName("FontInput")).Value = 30;
                     ((System.Windows.Controls.ComboBox)window.FindName("ModeChoice")).SelectedIndex = 2;
                     ((System.Windows.Controls.Button)window.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                     captured = window.CaptureSettings();
-                    Equal(1d, captured.opacity); Equal(14d, captured.fontSize); Equal("desktop", captured.displayMode);
-                    Equal(true, captured.startWithWindows); Equal(true, captured.normalModeDefaultApplied);
-                    Equal(new Settings().backgroundColor, captured.backgroundColor); Equal(new Settings().foregroundColor, captured.foregroundColor);
+                    Equal(1d, captured.opacity);
+                    Equal(14d, captured.fontSize);
+                    Equal("desktop", captured.displayMode);
+                    Equal(true, captured.startWithWindows);
+                    Equal(true, captured.normalModeDefaultApplied);
+                    Equal(new Settings().backgroundColor, captured.backgroundColor);
+                    Equal(new Settings().foregroundColor, captured.foregroundColor);
                     Equal("Segoe UI", captured.fontFamily);
-                    Equal(.81, service.Settings.opacity); Equal("#112233", service.Settings.backgroundColor);
+                    Equal(.81, service.Settings.opacity);
+                    Equal("#112233", service.Settings.backgroundColor);
                     Equal(true, window.FindName("FontFamilyButton") is System.Windows.Controls.Button);
                     Equal(UpdateService.Current.ToString(3), ((System.Windows.Controls.TextBlock)window.FindName("VersionValue")).Text);
                     Pump(30);
                     SavePreview(window, "settings-preview.png");
-                    ((System.Windows.Controls.ScrollViewer)window.Content).ScrollToBottom(); Pump(30);
+                    ((System.Windows.Controls.ScrollViewer)window.Content).ScrollToBottom();
+                    Pump(30);
                     SavePreview(window, "settings-bottom-preview.png");
                 }
-                finally { window.Close(); }
+                finally
+                {
+                    window.Close();
+                }
                 using (var storage = Store("launch-ui"))
                 {
                     storage.Load();
                     typeof(App).GetField("storage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(app, storage);
                     Equal(0, service.Notes.Count);
-                    app.OpenNotes(); Equal(1, service.Notes.Count);
-                    var first = service.Notes[0]; service.Hide(first);
-                    app.OpenNotes(); Equal(1, service.Notes.Count); Equal(true, first.isVisible);
-                    app.NewNote(); Equal(2, service.Notes.Count);
-                    app.OpenNotes(); Equal(2, service.Notes.Count);
+                    app.OpenNotes();
+                    Equal(1, service.Notes.Count);
+                    var first = service.Notes[0];
+                    service.Hide(first);
+                    app.OpenNotes();
+                    Equal(1, service.Notes.Count);
+                    Equal(true, first.isVisible);
+                    app.NewNote();
+                    Equal(2, service.Notes.Count);
+                    app.OpenNotes();
+                    Equal(2, service.Notes.Count);
                     Equal(true, service.Notes.All(n => n.isVisible));
                 }
             }
         }
+
         // QA: dispatcher startup must never start real storage, tray or registry code.
         private sealed class TestApplication : App
         {
-            protected override void OnStartup(StartupEventArgs e) { }
+            // Suppress production startup so control tests never register a real app instance.
+            protected override void OnStartup(StartupEventArgs e)
+            {
+            }
         }
+
         // QA: isolated storage per case.
         private static StorageService Store(string name)
         {
             var path = Path.Combine(root, name);
             return new StorageService(path, new LogService(path));
         }
+
         // QA: valid seed document.
-        private static BackupDocument Data(string text) { return new BackupDocument { notes = new NoteDocument { notes = new System.Collections.Generic.List<Note> { new Note { title = "test", content = text } } }, settings = new Settings() }; }
+        private static BackupDocument Data(string text)
+        {
+            return new BackupDocument
+            {
+                notes = new NoteDocument
+                {
+                    notes = new System.Collections.Generic.List<Note>
+                    {
+                        new Note
+                        {
+                            title = "test",
+                            content = text
+                        }
+                    }
+                },
+                settings = new Settings()
+            };
+        }
+
         // QA: assert expected value.
         private static void Equal<T>(T expected, T actual)
         {
             if (!Equals(expected, actual)) throw new Exception("Expected " + expected + ", got " + actual);
         }
+
         // QA: assert rejection.
-        private static void Throws(Action action) { try { action(); } catch { return; } throw new Exception("Expected rejection."); }
+        private static void Throws(Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch
+            {
+                return;
+            }
+            throw new Exception("Expected rejection.");
+        }
+
         // QA: report one case result.
-        private static void Run(string name, Action action) { try { action(); passed++; Console.WriteLine("PASS " + name); } catch (Exception e) { failures++; Console.WriteLine("FAIL " + name + ": " + e); } }
+        private static void Run(string name, Action action)
+        {
+            try
+            {
+                action();
+                passed++;
+                Console.WriteLine("PASS " + name);
+            }
+            catch (Exception e)
+            {
+                failures++;
+                Console.WriteLine("FAIL " + name + ": " + e);
+            }
+        }
+
         // QA: bounded dispatcher-aware wait.
         private static void Await(Task task)
         {
@@ -729,7 +1061,22 @@ namespace StickyNote.Tests
             if (!task.IsCompleted) throw new TimeoutException();
             task.GetAwaiter().GetResult();
         }
+
         // QA: advance dispatcher timers.
-        private static void Pump(int ms) { var frame = new DispatcherFrame(); var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) }; timer.Tick += (s, e) => { timer.Stop(); frame.Continue = false; }; timer.Start(); Dispatcher.PushFrame(frame); }
+        private static void Pump(int ms)
+        {
+            var frame = new DispatcherFrame();
+            var timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(ms)
+            };
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                frame.Continue = false;
+            };
+            timer.Start();
+            Dispatcher.PushFrame(frame);
+        }
     }
 }
